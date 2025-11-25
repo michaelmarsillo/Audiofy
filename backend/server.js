@@ -14,8 +14,10 @@ const { authenticateToken, optionalAuth } = require('./middleware/auth');
 const app = express();
 const server = http.createServer(app);
 // Configure allowed origins (support multiple for dev/prod)
+// Normalize URLs by removing trailing slashes for consistent matching
+const normalizeUrl = (url) => url.trim().replace(/\/+$/, '');
 const allowedOrigins = process.env.FRONTEND_URL 
-  ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
+  ? process.env.FRONTEND_URL.split(',').map(normalizeUrl)
   : ['http://localhost:3000'];
 
 const io = new Server(server, {
@@ -23,7 +25,8 @@ const io = new Server(server, {
     origin: (origin, callback) => {
       // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+      const normalizedOrigin = normalizeUrl(origin);
+      if (allowedOrigins.indexOf(normalizedOrigin) !== -1 || allowedOrigins.includes('*')) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
@@ -42,10 +45,14 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+    
+    // Normalize origin URL (remove trailing slash) for comparison
+    const normalizedOrigin = normalizeUrl(origin);
+    
+    if (allowedOrigins.indexOf(normalizedOrigin) !== -1 || allowedOrigins.includes('*')) {
       callback(null, true);
     } else {
-      console.warn(`⚠️ CORS blocked origin: ${origin}`);
+      console.warn(`⚠️ CORS blocked origin: ${origin} (normalized: ${normalizedOrigin})`);
       console.warn(`   Allowed origins: ${allowedOrigins.join(', ')}`);
       callback(new Error('Not allowed by CORS'));
     }
