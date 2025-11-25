@@ -49,8 +49,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Login failed');
+        let errorMessage = 'Login failed';
+        try {
+          const error = await response.json();
+          errorMessage = error.error || errorMessage;
+        } catch (e) {
+          // If response is not JSON, use status text
+          errorMessage = response.statusText || `HTTP ${response.status}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -64,6 +71,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('audiofy_user', JSON.stringify(data.user));
     } catch (error) {
       console.error('Login error:', error);
+      // If it's a network error, provide a more helpful message
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Failed to connect to server. Please check your connection.');
+      }
       throw error;
     }
   };
@@ -79,8 +90,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Signup failed');
+        let errorMessage = 'Signup failed';
+        try {
+          const error = await response.json();
+          errorMessage = error.error || errorMessage;
+        } catch (e) {
+          errorMessage = response.statusText || `HTTP ${response.status}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -94,6 +111,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('audiofy_user', JSON.stringify(data.user));
     } catch (error) {
       console.error('Signup error:', error);
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Failed to connect to server. Please check your connection.');
+      }
       throw error;
     }
   };

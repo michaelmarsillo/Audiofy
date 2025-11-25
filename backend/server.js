@@ -45,10 +45,14 @@ app.use(cors({
     if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
       callback(null, true);
     } else {
+      console.warn(`⚠️ CORS blocked origin: ${origin}`);
+      console.warn(`   Allowed origins: ${allowedOrigins.join(', ')}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(morgan('combined'));
 app.use(express.json());
@@ -103,7 +107,12 @@ app.post('/api/auth/signup', async (req, res) => {
 // Login
 app.post('/api/auth/login', async (req, res) => {
   try {
+    console.log(`🔐 Login request received from origin: ${req.get('origin') || 'no origin'}`);
+    console.log(`   Headers:`, req.headers);
+    
     const { email, password } = req.body;
+
+    console.log(`🔐 Login attempt for email: ${email}`);
 
     if (!email || !password) {
       return res.status(400).json({ 
@@ -117,7 +126,8 @@ app.post('/api/auth/login', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('❌ Login error:', error.message);
+    console.error('   Stack:', error.stack);
     res.status(401).json({ 
       error: error.message || 'Invalid credentials' 
     });
@@ -790,9 +800,25 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => {
+// Test database connection on startup
+async function testDatabaseConnection() {
+  try {
+    const pool = require('./db');
+    const result = await pool.query('SELECT NOW() as current_time');
+    console.log('✅ Database connected successfully');
+    console.log(`   Current time: ${result.rows[0].current_time}`);
+  } catch (error) {
+    console.error('❌ Database connection failed:', error.message);
+    console.error('   Make sure DATABASE_URL is set correctly in environment variables');
+  }
+}
+
+server.listen(PORT, async () => {
   console.log(`🚀 Audiofy Server running on port ${PORT}`);
   console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
   console.log('✅ Routes loaded: /api/heardle/daily, /api/search');
   console.log('🎮 Socket.IO multiplayer enabled');
+  
+  // Test database connection
+  await testDatabaseConnection();
 }); 
