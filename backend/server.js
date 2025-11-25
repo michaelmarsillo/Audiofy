@@ -31,9 +31,23 @@ const isOriginAllowed = (origin) => {
     return true;
   }
   
-  // Allow Vercel preview deployments (they end with .vercel.app)
+  // Allow Vercel preview deployments from this project only
+  // Vercel preview URLs contain the project name (e.g., "audiofy-*-*.vercel.app")
+  // Extract project name from production URL if available
   if (normalizedOrigin.endsWith('.vercel.app')) {
-    return true;
+    // Get the project name from the first allowed origin that's a vercel.app domain
+    const vercelOrigin = allowedOrigins.find(url => url.includes('.vercel.app'));
+    if (vercelOrigin) {
+      // Extract project name (e.g., "audiofy" from "https://audiofy-m.vercel.app")
+      const projectMatch = vercelOrigin.match(/https?:\/\/([^-]+)/);
+      if (projectMatch) {
+        const projectName = projectMatch[1];
+        // Check if the preview URL contains the project name
+        if (normalizedOrigin.includes(projectName)) {
+          return true;
+        }
+      }
+    }
   }
   
   // Allow localhost for development
