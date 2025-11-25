@@ -174,17 +174,7 @@ function MultiplayerRoomContent() {
     // Initialize socket with environment-aware URL
     const getSocketUrl = () => {
       if (typeof window === 'undefined') return 'http://localhost:5000';
-      
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-      
-      // Convert HTTP/HTTPS to WS/WSS for Socket.IO
-      if (apiUrl.startsWith('https://')) {
-        return apiUrl.replace('https://', 'wss://');
-      } else if (apiUrl.startsWith('http://')) {
-        return apiUrl.replace('http://', 'ws://');
-      }
-      
-      return apiUrl;
+      return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
     };
 
     const newSocket = io(getSocketUrl(), {

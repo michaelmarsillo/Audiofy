@@ -34,8 +34,13 @@ export default function FriendsLobby() {
       }
     }
 
-    // Initialize socket connection
-    const newSocket = io('http://localhost:5000', {
+    // Initialize socket with environment-aware URL
+    const getSocketUrl = () => {
+      if (typeof window === 'undefined') return 'http://localhost:5000';
+      return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    };
+
+    const newSocket = io(getSocketUrl(), {
       transports: ['websocket', 'polling']
     });
 
