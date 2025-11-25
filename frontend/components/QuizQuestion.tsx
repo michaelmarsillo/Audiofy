@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useVolume } from '@/components/VolumeControl';
-import { ensureAudioUnlocked, unlockAudio } from '@/utils/audioUnlock';
+import { ensureAudioUnlocked } from '@/utils/audioUnlock';
 
 interface Question {
   id: number;
