@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { QuizResults } from '@/components/QuizResults';
@@ -51,7 +51,7 @@ interface QuizData {
  * - Backend returns: score, percentage, results[], saved (boolean)
  * - Auth token sent via Authorization header if user logged in
  */
-export default function QuizPage() {
+function QuizPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const playlist = searchParams.get('playlist');
@@ -592,4 +592,12 @@ export default function QuizPage() {
       </div>
     </div>
   );
-} 
+}
+
+export default function QuizPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <QuizPageContent />
+    </Suspense>
+  );
+}
