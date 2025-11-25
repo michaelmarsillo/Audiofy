@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useVolume } from '@/components/VolumeControl';
+import { ensureAudioUnlocked, unlockAudio } from '@/utils/audioUnlock';
 
 // Constants
 const UNLOCK_SECONDS = [1, 2, 4, 7, 11, 16];
@@ -112,15 +113,18 @@ export default function HeardlePage() {
     audio.volume = siteVolume;
 
     if (isPlaying) {
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((error: unknown) => {
-          // Gracefully handle aborts
-          if ((error as Error).name !== 'AbortError') {
-            console.error("Play error:", error);
-          }
-        });
-      }
+      // Ensure audio is unlocked before playing (iOS Safari fix)
+      ensureAudioUnlocked(audio).then(() => {
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((error: unknown) => {
+            // Gracefully handle aborts
+            if ((error as Error).name !== 'AbortError') {
+              console.error("Play error:", error);
+            }
+          });
+        }
+      });
     } else {
       audio.pause();
     }
@@ -157,6 +161,8 @@ export default function HeardlePage() {
     if (isPlaying) {
       setIsPlaying(false);
     } else {
+      // Unlock audio on iOS when user clicks play button
+      unlockAudio();
       // If we are already at the end or past, reset to 0 before playing
       if (audioRef.current.currentTime >= UNLOCK_SECONDS[unlockedIndex]) {
         audioRef.current.currentTime = 0;

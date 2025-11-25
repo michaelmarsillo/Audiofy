@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useVolume } from '@/components/VolumeControl';
+import { ensureAudioUnlocked, unlockAudio } from '@/utils/audioUnlock';
 
 // Game Phases
 type GamePhase = 'welcome' | 'countdown' | 'listening' | 'discussion' | 'reveal' | 'gameover';
@@ -99,13 +100,16 @@ export default function ArcadePage() {
       // Set volume before playing
       audioRef.current.volume = siteVolume;
 
-      const playPromise = audioRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(error => {
+      // Ensure audio is unlocked before playing (iOS Safari fix)
+      ensureAudioUnlocked(audioRef.current).then(() => {
+        const playPromise = audioRef.current?.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
             console.log("Playback prevented:", error);
-        });
-      }
-      isPlayingRef.current = true;
+          });
+        }
+        isPlayingRef.current = true;
+      });
     }
   };
 
@@ -120,18 +124,8 @@ export default function ArcadePage() {
   const startGame = async () => {
     setLoading(true);
     
-    // Unlock audio context immediately on user interaction
-    if (audioRef.current) {
-      audioRef.current.load();
-      // Force a silent play to unlock autoplay policies
-      const unlockPlay = audioRef.current.play();
-      if (unlockPlay !== undefined) {
-        unlockPlay.then(() => {
-          audioRef.current?.pause();
-          audioRef.current!.currentTime = 0;
-        }).catch(e => console.log("Audio warmup:", e));
-      }
-    }
+    // Unlock audio on iOS when user clicks "Play"
+    unlockAudio();
 
     try {
       // Fetch songs from our API

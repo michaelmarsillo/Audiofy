@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useVolume } from '@/components/VolumeControl';
+import { ensureAudioUnlocked, unlockAudio } from '@/utils/audioUnlock';
 
 interface Question {
   id: number;
@@ -44,11 +45,14 @@ export function QuizQuestion({ question, onAnswerSelect, timeLeft, isPaused = fa
     if (audioRef.current && question.preview_url && question.preview_url !== 'https://example.com/preview1.mp3') {
       audioRef.current.currentTime = 0;
       audioRef.current.volume = siteVolume; // Set initial volume
-      audioRef.current.play().catch(() => {
-        // Handle autoplay restrictions
-        console.log('Autoplay prevented');
+      // Ensure audio is unlocked before playing (iOS Safari fix)
+      ensureAudioUnlocked(audioRef.current).then(() => {
+        audioRef.current?.play().catch(() => {
+          // Handle autoplay restrictions
+          console.log('Autoplay prevented');
+        });
+        setIsPlaying(true);
       });
-      setIsPlaying(true);
       
       // Hard stop at 7.0 seconds
       const checkTime = setInterval(() => {
@@ -83,10 +87,12 @@ export function QuizQuestion({ question, onAnswerSelect, timeLeft, isPaused = fa
       } else {
         // Resume playing if it was playing before pause
         if (wasPlayingBeforePause && audioRef.current.currentTime < 7.0) {
-          audioRef.current.play().catch(() => {
-            console.log('Resume playback failed');
+          ensureAudioUnlocked(audioRef.current).then(() => {
+            audioRef.current?.play().catch(() => {
+              console.log('Resume playback failed');
+            });
+            setIsPlaying(true);
           });
-          setIsPlaying(true);
         }
       }
     }
@@ -99,10 +105,12 @@ export function QuizQuestion({ question, onAnswerSelect, timeLeft, isPaused = fa
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
-      audioRef.current.play().catch(() => {
-        console.log('Playback failed');
+      ensureAudioUnlocked(audioRef.current).then(() => {
+        audioRef.current?.play().catch(() => {
+          console.log('Playback failed');
+        });
+        setIsPlaying(true);
       });
-      setIsPlaying(true);
     }
   };
 

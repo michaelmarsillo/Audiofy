@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { QuizResults } from '@/components/QuizResults';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useVolume } from '@/components/VolumeControl';
+import { ensureAudioUnlocked, unlockAudio } from '@/utils/audioUnlock';
 
 interface Question {
   id: number;
@@ -119,7 +120,10 @@ function QuizPageContent() {
       const audio = new Audio(question.preview_url);
       audio.volume = siteVolume;
       audio.currentTime = 0;
-      audio.play().catch(() => {});
+      // Ensure audio is unlocked before playing (iOS Safari fix)
+      ensureAudioUnlocked(audio).then(() => {
+        audio.play().catch(() => {});
+      });
       setAudioRef(audio);
     }
 
@@ -292,6 +296,8 @@ function QuizPageContent() {
   };
 
   const startQuiz = () => {
+    // Unlock audio on iOS when user clicks "Start Quiz"
+    unlockAudio();
     setQuizStarted(true);
     setGamePhase('countdown');
     setPhaseTimer(5);

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVolume } from '@/components/VolumeControl';
+import { ensureAudioUnlocked } from '@/utils/audioUnlock';
 import { io, Socket } from 'socket.io-client';
 import Image from 'next/image';
 
@@ -384,13 +385,15 @@ function MultiplayerRoomContent() {
       audio.volume = siteVolume;
       audioRef.current = audio;
       
-      // Play with proper error handling
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(err => {
-          console.error('Audio play error:', err);
-        });
-      }
+      // Ensure audio is unlocked before playing (iOS Safari fix)
+      ensureAudioUnlocked(audio).then(() => {
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(err => {
+            console.error('Audio play error:', err);
+          });
+        }
+      });
     }
   }, [phase, roundData, siteVolume]);
 

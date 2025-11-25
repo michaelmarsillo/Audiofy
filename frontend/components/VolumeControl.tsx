@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, createContext, useContext, ReactNode } from 'react';
+import { unlockAudio } from '@/utils/audioUnlock';
 
 // Create a context for volume control
 interface VolumeContextType {
@@ -34,6 +35,8 @@ export function VolumeControl() {
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     setSiteVolume(newVolume);
+    // Unlock audio on iOS when user interacts with volume slider
+    unlockAudio();
   };
 
   return (
@@ -82,7 +85,11 @@ export function VolumeControl() {
 
       {/* Settings Button */}
       <button
-        onClick={() => setShowVolumeControl(!showVolumeControl)}
+        onClick={() => {
+          setShowVolumeControl(!showVolumeControl);
+          // Unlock audio on iOS when user clicks settings button
+          unlockAudio();
+        }}
         className="w-14 h-14 bg-gradient-to-br from-[var(--accent-primary)] to-[var(--music-purple)] rounded-full flex items-center justify-center shadow-lg hover:shadow-[0_0_30px_rgba(88,101,242,0.6)] transition-all hover:scale-110"
       >
         <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
