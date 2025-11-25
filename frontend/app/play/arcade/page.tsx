@@ -153,6 +153,7 @@ export default function ArcadePage() {
           artist: string;
           preview_url: string;
           image?: string;
+          album?: string;
         }
         const gameSongs = data.questions.slice(0, TOTAL_ROUNDS).map((q: Question) => ({
           id: q.id,
