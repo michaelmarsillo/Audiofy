@@ -20,13 +20,34 @@ const allowedOrigins = process.env.FRONTEND_URL
   ? process.env.FRONTEND_URL.split(',').map(normalizeUrl)
   : ['http://localhost:3000'];
 
+// Helper function to check if origin is allowed
+const isOriginAllowed = (origin) => {
+  if (!origin) return true; // Allow requests with no origin
+  
+  const normalizedOrigin = normalizeUrl(origin);
+  
+  // Check exact matches
+  if (allowedOrigins.includes(normalizedOrigin) || allowedOrigins.includes('*')) {
+    return true;
+  }
+  
+  // Allow Vercel preview deployments (they end with .vercel.app)
+  if (normalizedOrigin.endsWith('.vercel.app')) {
+    return true;
+  }
+  
+  // Allow localhost for development
+  if (normalizedOrigin.startsWith('http://localhost:') || normalizedOrigin.startsWith('https://localhost:')) {
+    return true;
+  }
+  
+  return false;
+};
+
 const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, etc.)
-      if (!origin) return callback(null, true);
-      const normalizedOrigin = normalizeUrl(origin);
-      if (allowedOrigins.indexOf(normalizedOrigin) !== -1 || allowedOrigins.includes('*')) {
+      if (isOriginAllowed(origin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
@@ -43,15 +64,10 @@ const PORT = process.env.PORT || 5000;
 app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
-    
-    // Normalize origin URL (remove trailing slash) for comparison
-    const normalizedOrigin = normalizeUrl(origin);
-    
-    if (allowedOrigins.indexOf(normalizedOrigin) !== -1 || allowedOrigins.includes('*')) {
+    if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
+      const normalizedOrigin = normalizeUrl(origin);
       console.warn(`⚠️ CORS blocked origin: ${origin} (normalized: ${normalizedOrigin})`);
       console.warn(`   Allowed origins: ${allowedOrigins.join(', ')}`);
       callback(new Error('Not allowed by CORS'));
