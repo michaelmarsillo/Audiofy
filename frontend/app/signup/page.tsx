@@ -40,8 +40,8 @@ export default function SignupPage() {
     try {
       await signup(email, password, username);
       router.push('/'); // Redirect to home after signup
-    } catch (err: any) {
-      setError(err.message || 'Signup failed. Please try again.');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Signup failed. Please try again.');
     } finally {
       setIsLoading(false);
     }

@@ -19,7 +19,6 @@ interface Song {
 }
 
 export default function ArcadePage() {
-  const router = useRouter();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { siteVolume } = useVolume();
 
@@ -149,7 +148,14 @@ export default function ArcadePage() {
       
       if (data.questions && data.questions.length > 0) {
         // Transform quiz questions to Song format
-        const gameSongs = data.questions.slice(0, TOTAL_ROUNDS).map((q: any) => ({
+        interface Question {
+          id: number;
+          song_name?: string;
+          artist: string;
+          preview_url: string;
+          image?: string;
+        }
+        const gameSongs = data.questions.slice(0, TOTAL_ROUNDS).map((q: Question) => ({
           id: q.id,
           name: q.song_name || 'Unknown',
           artist: q.artist,
@@ -451,7 +457,7 @@ export default function ArcadePage() {
                     className={`p-4 rounded-xl border text-left transition-all ${selectedGenre === 'top-charts' ? 'bg-[var(--accent-primary)] border-[var(--accent-primary)] text-white' : 'bg-[var(--bg-tertiary)] border-[var(--bg-accent)] text-[var(--text-secondary)] hover:border-[var(--text-muted)]'}`}
                 >
                     <div className="font-bold">Modern Hits</div>
-                    <div className="text-xs opacity-80">Today's top chart toppers</div>
+                    <div className="text-xs opacity-80">Today&apos;s top chart toppers</div>
                 </button>
               </div>
             </div>

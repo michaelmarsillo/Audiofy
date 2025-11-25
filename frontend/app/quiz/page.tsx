@@ -67,6 +67,7 @@ export default function QuizPage() {
   // Quiz state management
   const [quizStarted, setQuizStarted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [answers, setAnswers] = useState<Answer[]>([]);
   const answersRef = useRef<Answer[]>([]); // Ref for immediate answer persistence
   const isSubmittingRef = useRef(false); // Ref to prevent double submission
@@ -80,6 +81,7 @@ export default function QuizPage() {
   // Audio and UI states
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null);
   const [showExitModal, setShowExitModal] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [submitting, setSubmitting] = useState(false);
 
   // Fetch quiz data on component mount
@@ -354,7 +356,7 @@ export default function QuizPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-4">failed to load quiz</h1>
-          <p className="text-[var(--text-secondary)] mb-6">we couldn't fetch the quiz questions. please try again.</p>
+          <p className="text-[var(--text-secondary)] mb-6">we couldn&apos;t fetch the quiz questions. please try again.</p>
           <button 
             onClick={fetchQuiz}
             className="btn-primary px-6 py-3 rounded-2xl font-semibold"
@@ -443,7 +445,7 @@ export default function QuizPage() {
               exit quiz?
             </h2>
             <p className="text-[var(--text-secondary)] text-center mb-8">
-              your progress will be lost and this quiz won't be saved.
+              your progress will be lost and this quiz won&apos;t be saved.
             </p>
             
             <div className="flex gap-3">

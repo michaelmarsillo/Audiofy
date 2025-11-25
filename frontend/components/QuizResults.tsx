@@ -17,26 +17,12 @@ interface QuizResultsProps {
 }
 
 export function QuizResults({ results, onPlayAgain }: QuizResultsProps) {
-  const getScoreColor = (percentage: number) => {
-    if (percentage >= 80) return 'var(--accent-success)';
-    if (percentage >= 60) return 'var(--accent-warning)';
-    return 'var(--accent-danger)';
-  };
-
   const getScoreMessage = (percentage: number) => {
-    if (percentage === 100) return 'Perfect Score! You\'re a music master!';
+    if (percentage === 100) return 'Perfect Score! You&apos;re a music master!';
     if (percentage >= 80) return 'Excellent! You really know your music!';
     if (percentage >= 60) return 'Good job! Not bad at all!';
-    if (percentage >= 40) return 'Keep practicing! You\'ll get better!';
-    return 'Don\'t give up! Music knowledge takes time to build!';
-  };
-
-  const getGradeEmoji = (percentage: number) => {
-    if (percentage >= 90) return '🏆';
-    if (percentage >= 80) return '🥇';
-    if (percentage >= 70) return '🥈';
-    if (percentage >= 60) return '🥉';
-    return '📚';
+    if (percentage >= 40) return 'Keep practicing! You&apos;ll get better!';
+    return 'Don&apos;t give up! Music knowledge takes time to build!';
   };
 
   const getGradient = (percentage: number) => {

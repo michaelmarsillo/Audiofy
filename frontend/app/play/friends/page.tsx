@@ -13,7 +13,6 @@ export default function FriendsLobby() {
   const [username, setUsername] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [showJoinModal, setShowJoinModal] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -165,7 +164,7 @@ export default function FriendsLobby() {
             </div>
             <div className="text-left">
               <div className="text-2xl font-bold">Join with Code</div>
-              <div className="text-sm text-white/80">Enter a friend's room code</div>
+              <div className="text-sm text-white/80">Enter a friend&apos;s room code</div>
             </div>
           </div>
           <svg className="w-8 h-8 transform group-hover:translate-x-2 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -227,7 +226,7 @@ export default function FriendsLobby() {
           <ul className="space-y-2 text-[var(--text-secondary)]">
             <li className="flex items-start gap-2">
               <span className="text-purple-400 font-bold">1.</span>
-              <span>Create a room or join with a friend's code</span>
+              <span>Create a room or join with a friend&apos;s code</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-purple-400 font-bold">2.</span>

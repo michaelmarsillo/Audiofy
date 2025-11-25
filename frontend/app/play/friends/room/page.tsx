@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVolume } from '@/components/VolumeControl';
 import { io, Socket } from 'socket.io-client';
-import Link from 'next/link';
 import Image from 'next/image';
 
 // Circular Timer Component with smooth animations (from Arcade)
@@ -132,7 +131,13 @@ function MultiplayerRoomContent() {
   const [roundData, setRoundData] = useState<RoundData | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [hasAnswered, setHasAnswered] = useState(false);
-  const [answerResult, setAnswerResult] = useState<any>(null);
+  interface AnswerResult {
+    correct: boolean;
+    isCorrect: boolean;
+    points: number;
+    message?: string;
+  }
+  const [answerResult, setAnswerResult] = useState<AnswerResult | null>(null);
   const [roundHistory, setRoundHistory] = useState<boolean[]>([]);
   const [timer, setTimer] = useState(0);
   const [rankings, setRankings] = useState<Player[]>([]);

@@ -38,7 +38,6 @@ interface UserStats {
 }
 
 export default function LeaderboardPage() {
-  const router = useRouter();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'global' | 'solo' | 'multiplayer'>('global');
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -51,6 +50,7 @@ export default function LeaderboardPage() {
     if (user) {
       fetchUserStats();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, user]);
 
   const fetchLeaderboard = async () => {
@@ -298,7 +298,7 @@ export default function LeaderboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {leaderboard.map((entry, index) => {
+                  {leaderboard.map((entry) => {
                     const isCurrentUser = user && entry.user_id === Number(user.id);
                     const score = activeTab === 'global' 
                       ? (entry.total_audiofy_score ?? 0)

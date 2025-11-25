@@ -113,10 +113,10 @@ export default function HeardlePage() {
     if (isPlaying) {
       const playPromise = audio.play();
       if (playPromise !== undefined) {
-        playPromise.catch(e => {
+        playPromise.catch((error: unknown) => {
           // Gracefully handle aborts
-          if (e.name !== 'AbortError') {
-            console.error("Play error:", e);
+          if ((error as Error).name !== 'AbortError') {
+            console.error("Play error:", error);
           }
         });
       }

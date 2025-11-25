@@ -11,13 +11,13 @@ export default function Home() {
   const { user, logout } = useAuth();
   
   // Typing animation for rotating words
-  const words = ['knowledge', 'memory', 'taste'];
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [displayedText, setDisplayedText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
 
 
   useEffect(() => {
+    const words = ['knowledge', 'memory', 'taste'];
     const currentWord = words[currentWordIndex];
     
     const timeout = setTimeout(() => {
@@ -36,13 +36,13 @@ export default function Home() {
         } else {
           // Move to next word
           setIsDeleting(false);
-          setCurrentWordIndex((prev) => (prev + 1) % words.length);
+          setCurrentWordIndex((prev) => (prev + 1) % 3);
         }
       }
     }, isDeleting ? 50 : 80); // Faster when deleting
 
     return () => clearTimeout(timeout);
-  }, [displayedText, isDeleting, currentWordIndex, words]);
+  }, [displayedText, isDeleting, currentWordIndex]);
 
   const handleButtonClick = () => {
     router.push('/play');

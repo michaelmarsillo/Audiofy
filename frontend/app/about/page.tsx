@@ -11,8 +11,14 @@ export default function AboutPage() {
   const [hoverAudio, setHoverAudio] = useState<HTMLAudioElement | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
-  const [cachedTracks, setCachedTracks] = useState<any[]>([]);
-  const [currentTrack, setCurrentTrack] = useState<any>(null);
+  interface Track {
+    previewUrl: string;
+    trackName: string;
+    artistName: string;
+  }
+  
+  const [cachedTracks, setCachedTracks] = useState<Track[]>([]);
+  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [showImageModal, setShowImageModal] = useState(false);
 
   // Fetch and play specific Juice WRLD songs on hover
@@ -57,7 +63,7 @@ export default function AboutPage() {
         const tracks = results
           .map(data => {
             // Find the first result where artist name OR track name contains "Juice WRLD"
-            return data.results?.find((track: any) => {
+            return data.results?.find((track: Track) => {
               if (!track || !track.previewUrl) return false;
               
               const artistName = (track.artistName || '').toLowerCase();
@@ -69,7 +75,7 @@ export default function AboutPage() {
                      trackName.includes('juice wrld');
             });
           })
-          .filter((track: any) => track);
+          .filter((track: Track | undefined): track is Track => !!track);
         
         if (tracks.length > 0) {
           setCachedTracks(tracks);
@@ -188,7 +194,7 @@ export default function AboutPage() {
 
               <div className="space-y-3 md:space-y-4 text-[var(--text-secondary)] text-base md:text-lg leading-relaxed">
                 <p>
-                  hey there! i'm <span className="text-[var(--accent-primary)] font-semibold">michael marsillo</span>, 
+                  hey there!                   i&apos;m <span className="text-[var(--accent-primary)] font-semibold">michael marsillo</span>, 
                   the creator of audiofy. i built this app because i love music and wanted to create a fun way 
                   to test your music knowledge with friends and family.
                 </p>
@@ -200,8 +206,8 @@ export default function AboutPage() {
                   it features real-time scoring, a global leaderboard, and web sockets for multiplayer functionality.
                 </p>
                 <p>
-                  when i'm not coding, you can find me at the gym working out, researching about pharmacology, or chilling listening to music. if you want to contribute, i'm leaving this project open source, feel free to make a pr here{' '}
-                  <a href="https://github.com/michaelmarsillo/audiofy" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-primary)] hover:text-[var(--accent-secondary)] transition-colors">→ audiofy</a> also, if you'd like to learn more about me you can checkout my blog here{' '}
+                  when i&apos;m not coding, you can find me at the gym working out, researching about pharmacology, or chilling listening to music. if you want to contribute, i&apos;m leaving this project open source, feel free to make a pr here{' '}
+                  <a href="https://github.com/michaelmarsillo/audiofy" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-primary)] hover:text-[var(--accent-secondary)] transition-colors">→ audiofy</a> also, if you&apos;d like to learn more about me you can checkout my blog here{' '}
                   <a href="https://michaelmarsillo.ca/blog" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-primary)] hover:text-[var(--accent-secondary)] transition-colors">→ my blog</a>
                 </p>
               </div>

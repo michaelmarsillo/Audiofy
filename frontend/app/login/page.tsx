@@ -21,8 +21,8 @@ export default function LoginPage() {
     try {
       await login(email, password);
       router.push('/'); // Redirect to home after login
-    } catch (err: any) {
-      setError(err.message || 'Login failed. Please try again.');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
