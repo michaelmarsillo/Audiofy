@@ -51,6 +51,7 @@ export default function HeardlePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Song[]>([]);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [nextHeardleTime, setNextHeardleTime] = useState<string>('');
@@ -397,7 +398,7 @@ export default function HeardlePage() {
         {/* Player Controls */}
         <div className="mt-auto bg-[var(--bg-secondary)]/60 backdrop-blur-md rounded-2xl p-6 border border-[var(--bg-accent)] shadow-xl">
           {/* Progress Bar */}
-          <div className="relative h-4 mb-6 select-none cursor-pointer group" onClick={(e) => {
+          <div className="relative h-4 mb-6 select-none cursor-pointer group" onClick={() => {
              // Seeking logic can be added here
           }}>
             <div className="absolute inset-0 bg-[var(--bg-tertiary)] rounded-full overflow-hidden border border-[var(--bg-accent)]">

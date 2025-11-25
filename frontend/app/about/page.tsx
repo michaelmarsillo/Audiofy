@@ -217,7 +217,7 @@ export default function AboutPage() {
           {/* Music Platforms Section */}
           <div className="flex items-center justify-center gap-3 -mt-4">
             <span className="text-[var(--text-muted)] text-xs font-medium">
-              find what i'm listening to <span className="text-[var(--accent-primary)]">→</span>
+              find what i&apos;m listening to <span className="text-[var(--accent-primary)]">→</span>
             </span>
             <div className="flex items-center gap-3">
               {/* Spotify Button */}
