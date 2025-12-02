@@ -40,10 +40,13 @@ export function unlockAudio(): void {
 /**
  * Unlocks a specific audio element by playing a silent sound on it
  * This is the key fix for iOS - unlock must happen on the SAME element
+ * 
+ * IMPORTANT: On iOS, changing the src can reset the unlock state.
+ * So we may need to unlock again even if the element was previously unlocked.
  */
-async function unlockSpecificElement(audio: HTMLAudioElement): Promise<void> {
-  if (unlockedElements.has(audio)) {
-    return; // Already unlocked
+async function unlockSpecificElement(audio: HTMLAudioElement, force: boolean = false): Promise<void> {
+  if (!force && unlockedElements.has(audio)) {
+    return; // Already unlocked (unless forcing)
   }
 
   try {
@@ -88,10 +91,13 @@ async function unlockSpecificElement(audio: HTMLAudioElement): Promise<void> {
  * 
  * IMPORTANT: On iOS, this must be called synchronously or in direct response
  * to user interaction. Async delays can break the unlock chain.
+ * 
+ * @param force - If true, force unlock even if element was previously unlocked.
+ *                Use this when src has changed, as iOS may reset unlock state.
  */
-export async function ensureAudioUnlocked(audio: HTMLAudioElement): Promise<void> {
-  // Check if already unlocked
-  if (unlockedElements.has(audio)) {
+export async function ensureAudioUnlocked(audio: HTMLAudioElement, force: boolean = false): Promise<void> {
+  // Check if already unlocked (unless forcing)
+  if (!force && unlockedElements.has(audio)) {
     return;
   }
 

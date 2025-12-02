@@ -393,9 +393,17 @@ function MultiplayerRoomContent() {
     const audio = audioRef.current;
     audio.volume = siteVolume;
     
-    // Ensure audio is unlocked before playing (iOS Safari fix)
-    // This is the same pattern Heardle uses - unlock then play
-    ensureAudioUnlocked(audio).then(() => {
+    // For iOS: When src changes, we need to unlock again because changing src
+    // can reset the unlock state. Force unlock when src changes.
+    // Note: This might not work perfectly on iOS if called from useEffect,
+    // but it's the best we can do without user interaction.
+    ensureAudioUnlocked(audio, true).then(() => {
+      // Set src and load before playing
+      if (audio.src !== currentAudioSrc) {
+        audio.src = currentAudioSrc;
+        audio.load();
+      }
+      
       const playPromise = audio.play();
       if (playPromise !== undefined) {
         playPromise.catch(err => {
@@ -411,6 +419,14 @@ function MultiplayerRoomContent() {
     // Unlock audio on iOS when user clicks "Start Game"
     // This MUST happen synchronously in the click handler for iOS
     unlockAudio();
+    
+    // Also unlock the actual audio element that will be used
+    // iOS requires unlock on the SAME element that will play
+    if (audioRef.current) {
+      ensureAudioUnlocked(audioRef.current).catch(() => {
+        // If unlock fails, that's okay - will try again when playing
+      });
+    }
     
     socket.emit('start-game', { roomCode });
   };
@@ -454,12 +470,11 @@ function MultiplayerRoomContent() {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] text-white p-4 sm:p-8">
         {/* Audio Element - Use DOM element like Heardle does */}
-        {currentAudioSrc && (
-          <audio
-            ref={audioRef}
-            src={currentAudioSrc}
-          />
-        )}
+        {/* Always render the audio element (even if src is empty) so we can unlock it */}
+        <audio
+          ref={audioRef}
+          src={currentAudioSrc || ''}
+        />
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[var(--accent-primary)] rounded-full blur-[150px]"></div>
@@ -589,12 +604,11 @@ function MultiplayerRoomContent() {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] text-white p-4 sm:p-8 flex items-center justify-center">
         {/* Audio Element - Use DOM element like Heardle does */}
-        {currentAudioSrc && (
-          <audio
-            ref={audioRef}
-            src={currentAudioSrc}
-          />
-        )}
+        {/* Always render the audio element (even if src is empty) so we can unlock it */}
+        <audio
+          ref={audioRef}
+          src={currentAudioSrc || ''}
+        />
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[var(--accent-primary)] rounded-full blur-[150px]"></div>
@@ -680,12 +694,11 @@ function MultiplayerRoomContent() {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] text-white flex items-center justify-center p-4">
         {/* Audio Element - Use DOM element like Heardle does */}
-        {currentAudioSrc && (
-          <audio
-            ref={audioRef}
-            src={currentAudioSrc}
-          />
-        )}
+        {/* Always render the audio element (even if src is empty) so we can unlock it */}
+        <audio
+          ref={audioRef}
+          src={currentAudioSrc || ''}
+        />
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[var(--accent-primary)] rounded-full blur-[150px]"></div>
@@ -720,12 +733,11 @@ function MultiplayerRoomContent() {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] text-white p-4">
         {/* Audio Element - Use DOM element like Heardle does */}
-        {currentAudioSrc && (
-          <audio
-            ref={audioRef}
-            src={currentAudioSrc}
-          />
-        )}
+        {/* Always render the audio element (even if src is empty) so we can unlock it */}
+        <audio
+          ref={audioRef}
+          src={currentAudioSrc || ''}
+        />
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[var(--accent-primary)] rounded-full blur-[150px]"></div>
@@ -817,12 +829,11 @@ function MultiplayerRoomContent() {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] text-white p-4 flex items-center justify-center">
         {/* Audio Element - Use DOM element like Heardle does */}
-        {currentAudioSrc && (
-          <audio
-            ref={audioRef}
-            src={currentAudioSrc}
-          />
-        )}
+        {/* Always render the audio element (even if src is empty) so we can unlock it */}
+        <audio
+          ref={audioRef}
+          src={currentAudioSrc || ''}
+        />
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[var(--accent-primary)] rounded-full blur-[150px]"></div>

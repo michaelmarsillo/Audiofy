@@ -215,9 +215,17 @@ function QuizPageContent() {
     const audio = audioRef.current;
     audio.volume = siteVolume;
     
-    // Ensure audio is unlocked before playing (iOS Safari fix)
-    // This is the same pattern Heardle uses - unlock then play
-    ensureAudioUnlocked(audio).then(() => {
+    // For iOS: When src changes, we need to unlock again because changing src
+    // can reset the unlock state. Force unlock when src changes.
+    // Note: This might not work perfectly on iOS if called from useEffect,
+    // but it's the best we can do without user interaction.
+    ensureAudioUnlocked(audio, true).then(() => {
+      // Set src and load before playing
+      if (audio.src !== currentAudioSrc) {
+        audio.src = currentAudioSrc;
+        audio.load();
+      }
+      
       const playPromise = audio.play();
       if (playPromise !== undefined) {
         playPromise.catch((err) => {
@@ -301,6 +309,14 @@ function QuizPageContent() {
     // Unlock audio on iOS when user clicks "Start Quiz"
     // This MUST happen synchronously in the click handler for iOS
     unlockAudio();
+    
+    // Also unlock the actual audio element that will be used
+    // iOS requires unlock on the SAME element that will play
+    if (audioRef.current) {
+      ensureAudioUnlocked(audioRef.current).catch(() => {
+        // If unlock fails, that's okay - will try again when playing
+      });
+    }
     
     setQuizStarted(true);
     setGamePhase('countdown');
@@ -443,15 +459,14 @@ function QuizPageContent() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] p-4 md:p-6">
       {/* Audio Element - Use DOM element like Heardle does */}
-      {currentAudioSrc && (
-        <audio
-          ref={audioRef}
-          src={currentAudioSrc}
-          onEnded={() => {
-            // Auto-stop at 7 seconds handled by QuizQuestion component
-          }}
-        />
-      )}
+      {/* Always render the audio element (even if src is empty) so we can unlock it */}
+      <audio
+        ref={audioRef}
+        src={currentAudioSrc || ''}
+        onEnded={() => {
+          // Auto-stop at 7 seconds handled by QuizQuestion component
+        }}
+      />
       
       {/* Exit Confirmation Modal */}
       {showExitModal && (
