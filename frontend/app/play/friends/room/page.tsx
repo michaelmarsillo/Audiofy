@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVolume } from '@/components/VolumeControl';
-import { unlockAudio, ensureAudioUnlocked, isElementUnlocked } from '@/utils/audioUnlock';
+import { unlockAudio, ensureAudioUnlocked } from '@/utils/audioUnlock';
 import { isIOS } from '@/utils/deviceDetection';
 import { io, Socket } from 'socket.io-client';
 import Image from 'next/image';
@@ -306,6 +306,14 @@ function MultiplayerRoomContent() {
     switch (phase) {
       case 'countdown':
         // Start listening phase
+        // Unlock audio BEFORE transitioning to listening phase
+        // This ensures audio is ready when we set the src
+        if (audioRef.current && isIOS()) {
+          // Pre-unlock the audio element so it's ready when src is set
+          ensureAudioUnlocked(audioRef.current, true).catch(() => {
+            // If unlock fails, that's okay - will try again
+          });
+        }
         setPhase('listening');
         setTimer(7);
         socket.emit('request-round', { roomCode, roundIndex: currentRound });
@@ -374,75 +382,51 @@ function MultiplayerRoomContent() {
     }
   }, [siteVolume]);
 
-  // Set audio src when round data is received (like Heardle pattern)
-  // Keep src set during both listening AND reveal phases (audio continues playing)
+  // Set audio src when round data is received and play immediately
+  // CRITICAL: When roundData arrives during listening phase, unlock and play IMMEDIATELY
+  // This is the key - we do it in the same useEffect that receives roundData
   useEffect(() => {
-    if (roundData?.previewUrl) {
-      // Set src when we have round data, keep it during listening and reveal
-      if (phase === 'listening' || phase === 'reveal') {
-        // Only update src if it's different (to avoid unnecessary reloads)
-        if (currentAudioSrc !== roundData.previewUrl) {
-          setCurrentAudioSrc(roundData.previewUrl);
-        }
-      } else {
-        // Only clear src when moving to intermission or gameover
-        setCurrentAudioSrc('');
-        // Stop audio when leaving listening/reveal phases
-        if (audioRef.current) {
-          audioRef.current.pause();
-          audioRef.current.currentTime = 0;
-        }
-      }
-    } else {
+    if (!roundData?.previewUrl) {
       setCurrentAudioSrc('');
+      return;
     }
-  }, [phase, roundData, currentAudioSrc]);
 
-  // Auto-play audio when src changes (like Heardle pattern)
-  // Only play during listening phase - during reveal, audio should already be playing
-  useEffect(() => {
-    if (!audioRef.current || !currentAudioSrc) return;
-    
-    // Only auto-play during listening phase
-    // During reveal phase, audio should already be playing from listening phase
-    if (phase !== 'listening') return;
-
-    const audio = audioRef.current;
-    audio.volume = siteVolume; // Set volume but don't restart playback
-    
-    // For iOS: Check if audio is unlocked, show button if not
-    if (isIOS() && !isElementUnlocked(audio)) {
-      setShowIOSAudioButton(true);
-    }
-    
-    // For iOS: When src changes, we need to unlock again because changing src
-    // can reset the unlock state. Force unlock when src changes.
-    // Note: This might not work perfectly on iOS if called from useEffect,
-    // but it's the best we can do without user interaction.
-    ensureAudioUnlocked(audio, true).then(() => {
-      // Set src and load before playing
-      if (audio.src !== currentAudioSrc) {
-        audio.src = currentAudioSrc;
-        audio.load();
-      }
+    if (phase === 'listening' || phase === 'reveal') {
+      setCurrentAudioSrc(roundData.previewUrl);
       
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(err => {
-          console.error('Audio play error:', err);
-          // Show iOS button if play fails on iOS
+      // CRITICAL: If we're in listening phase, unlock and play NOW
+      // This happens when roundData arrives, which is right after user interaction
+      if (phase === 'listening' && audioRef.current) {
+        const audio = audioRef.current;
+        audio.volume = siteVolume;
+        audio.src = roundData.previewUrl;
+        audio.load();
+        
+        // Unlock and play immediately - same pattern that works during reveal
+        ensureAudioUnlocked(audio, true).then(() => {
+          audio.play().catch(err => {
+            console.error('Audio play failed:', err);
+            if (isIOS()) {
+              setShowIOSAudioButton(true);
+            }
+          });
+        }).catch(() => {
           if (isIOS()) {
             setShowIOSAudioButton(true);
           }
         });
-      } else {
-        // If play succeeds, hide the button
-        if (isIOS()) {
-          setShowIOSAudioButton(false);
-        }
       }
-    });
-  }, [currentAudioSrc, phase]); // Added phase to dependencies
+    } else {
+      setCurrentAudioSrc('');
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+    }
+  }, [phase, roundData, siteVolume]);
+
+  // Note: Audio playback is now handled in the roundData useEffect above
+  // This ensures we unlock and play immediately when roundData arrives during listening phase
 
   const handleStartGame = () => {
     if (!socket || !isHost) return;

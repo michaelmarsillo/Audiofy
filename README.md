@@ -52,42 +52,6 @@ A full-stack music trivia game where players test their music knowledge by guess
 - **iTunes Search API** - Music track data and previews
 
 
-## 📁 Project Structure
-
-```
-audiofy/
-├── frontend/
-│   ├── app/              # Next.js app router pages
-│   │   ├── page.tsx     # Home page
-│   │   ├── quiz/         # Solo play mode
-│   │   ├── play/         # Game mode selection
-│   │   │   ├── solo/     # Solo play
-│   │   │   ├── heardle/  # Heardle mode
-│   │   │   ├── arcade/   # Arcade mode
-│   │   │   └── friends/  # Multiplayer mode
-│   │   ├── leaderboard/  # Leaderboard page
-│   │   ├── about/        # About page
-│   │   ├── login/        # Login page
-│   │   └── signup/       # Signup page
-│   ├── components/       # React components
-│   ├── contexts/         # React contexts (Auth)
-│   └── public/           # Static assets
-│
-├── backend/
-│   ├── server.js         # Express server & Socket.IO
-│   ├── services/         # Business logic
-│   │   ├── authService.js
-│   │   └── audioService.js
-│   ├── middleware/       # Express middleware
-│   │   └── auth.js
-│   ├── scripts/          # Database scripts
-│   │   ├── migrate-leaderboard.js
-│   │   └── test-leaderboard.js
-│   └── db.js             # Database connection
-│
-└── README.md
-```
-
 ## 🎮 Game Modes Explained
 
 ### Solo Play
