@@ -203,16 +203,35 @@ function QuizPageContent() {
 
     // Create new audio only when starting guessing phase
     if (gamePhase === 'guessing') {
-      const audio = new Audio(question.preview_url);
+      // Create audio element WITHOUT src first (iOS requirement)
+      // This allows us to unlock it before setting the actual source
+      const audio = new Audio();
       audio.volume = siteVolume;
       audio.currentTime = 0;
-      
-      // Ensure audio is unlocked before playing (iOS Safari fix)
-      // This works on both desktop and mobile
-      ensureAudioUnlocked(audio).then(() => {
-        audio.play().catch(() => {});
-      });
       audioRef.current = audio;
+      
+      // Unlock the audio element first (must happen before setting src on iOS)
+      ensureAudioUnlocked(audio).then(() => {
+        // Now set the actual source and play
+        audio.src = question.preview_url;
+        audio.load(); // Load the new source
+        
+        // Play after a brief moment to ensure source is loaded
+        setTimeout(() => {
+          if (audioRef.current === audio) {
+            audio.play().catch((err) => {
+              console.log('Audio play failed:', err);
+            });
+          }
+        }, 50);
+      }).catch(() => {
+        // If unlock fails, try setting src and playing anyway (for desktop)
+        if (audioRef.current === audio) {
+          audio.src = question.preview_url;
+          audio.load();
+          audio.play().catch(() => {});
+        }
+      });
     }
 
     return () => {

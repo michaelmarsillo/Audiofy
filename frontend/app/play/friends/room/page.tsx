@@ -381,19 +381,34 @@ function MultiplayerRoomContent() {
         audioRef.current = null;
       }
       
-      // Create and play new audio
-      const audio = new Audio(roundData.previewUrl);
+      // Create audio element WITHOUT src first (iOS requirement)
+      const audio = new Audio();
       audio.volume = siteVolume;
       audioRef.current = audio;
       
-      // Ensure audio is unlocked before playing (iOS Safari fix)
-      // This works on both desktop and mobile
+      // Unlock the audio element first (must happen before setting src on iOS)
       ensureAudioUnlocked(audio).then(() => {
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(err => {
-            console.error('Audio play error:', err);
-          });
+        // Now set the actual source and play
+        audio.src = roundData.previewUrl;
+        audio.load(); // Load the new source
+        
+        // Play after a brief moment to ensure source is loaded
+        setTimeout(() => {
+          if (audioRef.current === audio) {
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(err => {
+                console.error('Audio play error:', err);
+              });
+            }
+          }
+        }, 50);
+      }).catch(() => {
+        // If unlock fails, try setting src and playing anyway (for desktop)
+        if (audioRef.current === audio) {
+          audio.src = roundData.previewUrl;
+          audio.load();
+          audio.play().catch(() => {});
         }
       });
     }

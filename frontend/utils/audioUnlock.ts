@@ -85,19 +85,90 @@ async function unlockSpecificElement(audio: HTMLAudioElement): Promise<void> {
  * Ensures audio is unlocked before playing
  * This unlocks the specific audio element (iOS requirement)
  * Call this before any audio.play() on iOS
+ * 
+ * IMPORTANT: On iOS, this must be called synchronously or in direct response
+ * to user interaction. Async delays can break the unlock chain.
  */
 export async function ensureAudioUnlocked(audio: HTMLAudioElement): Promise<void> {
+  // Check if already unlocked
+  if (unlockedElements.has(audio)) {
+    return;
+  }
+
   // First ensure global unlock (for initial user interaction)
   if (!globalUnlocked) {
     unlockAudio();
-    await new Promise(resolve => setTimeout(resolve, 50));
   }
   
-  // Then unlock this specific element (iOS requirement)
-  if (!unlockedElements.has(audio)) {
-    await unlockSpecificElement(audio);
-    await new Promise(resolve => setTimeout(resolve, 50));
-  }
+  // Unlock this specific element immediately (iOS requirement)
+  // We do this synchronously to maintain the user interaction chain
+  return new Promise((resolve) => {
+    try {
+      // Save current state
+      const originalSrc = audio.src || '';
+      const originalVolume = audio.volume;
+      const hadSrc = originalSrc.length > 0;
+
+      // Play silent sound to unlock this specific element
+      // This MUST happen synchronously for iOS
+      audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+      audio.volume = 0.01;
+      
+      // Try to play immediately
+      const playPromise = audio.play();
+      
+      // Handle play promise
+      if (playPromise) {
+        playPromise
+          .then(() => {
+            // Success - pause and restore
+            audio.pause();
+            audio.currentTime = 0;
+            if (hadSrc) {
+              audio.src = originalSrc;
+            } else {
+              audio.src = '';
+            }
+            audio.volume = originalVolume;
+            unlockedElements.add(audio);
+            console.log('✅ Audio element unlocked for iOS');
+            resolve();
+          })
+          .catch(() => {
+            // If play fails, restore anyway and mark as attempted
+            audio.pause();
+            audio.currentTime = 0;
+            if (hadSrc) {
+              audio.src = originalSrc;
+            } else {
+              audio.src = '';
+            }
+            audio.volume = originalVolume;
+            // Still mark as unlocked attempt - might work on next try
+            unlockedElements.add(audio);
+            console.warn('⚠️ Audio unlock play failed, but element marked as attempted');
+            resolve();
+          });
+      } else {
+        // No promise returned - restore immediately
+        if (hadSrc) {
+          audio.src = originalSrc;
+        } else {
+          audio.src = '';
+        }
+        audio.volume = originalVolume;
+        unlockedElements.add(audio);
+        resolve();
+      }
+    } catch (error) {
+      console.warn('⚠️ Audio element unlock failed:', error);
+      // If unlock fails, try to restore anyway
+      if (audio.src.includes('data:audio')) {
+        audio.src = '';
+      }
+      resolve(); // Resolve anyway to not block
+    }
+  });
 }
 
 /**
