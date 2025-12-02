@@ -157,6 +157,15 @@ function MultiplayerRoomContent() {
 
   useEffect(() => {
     if (!roomCode) {
+      // CRITICAL: Stop and clear audio before leaving
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current.currentTime = 0;
+        audioRef.current.load();
+      }
+      setCurrentAudioSrc('');
+      
       router.push('/play/friends');
       return;
     }
@@ -326,14 +335,13 @@ function MultiplayerRoomContent() {
         break;
 
       case 'reveal':
-        // Move to intermission and pause audio
+        // Move to intermission and stop audio completely
         setPhase('intermission');
         setTimer(5);
         if (audioRef.current) {
           audioRef.current.pause();
-          audioRef.current.currentTime = 0;
-          // CRITICAL: Clear src to prevent playing when exiting
           audioRef.current.src = '';
+          audioRef.current.currentTime = 0;
         }
         break;
 
@@ -384,18 +392,15 @@ function MultiplayerRoomContent() {
     }
   }, [siteVolume]);
 
-  // Set audio src when round data is received
-  // CRITICAL: Audio element is already playing (silently) from "Start Game" click
-  // So we just change the src - iOS allows this because element is already playing
+  // Set audio src when round data is received and play immediately
   useEffect(() => {
     if (!roundData?.previewUrl) {
       setCurrentAudioSrc('');
+      // CRITICAL: Stop and clear audio completely when no round data
       if (audioRef.current) {
-        // Go back to silent sound
-        const silentSrc = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
-        audioRef.current.src = silentSrc;
-        audioRef.current.volume = 0.01;
-        audioRef.current.loop = true;
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current.currentTime = 0;
       }
       return;
     }
@@ -403,30 +408,24 @@ function MultiplayerRoomContent() {
     if (phase === 'listening' || phase === 'reveal') {
       setCurrentAudioSrc(roundData.previewUrl);
       
-      // CRITICAL: Audio element is already playing (silently) from "Start Game"
-      // Just change the src and volume - iOS allows this because element is already playing
+      // Set src and play - element is already unlocked from "Start Game" click
       if (audioRef.current) {
         const audio = audioRef.current;
         audio.src = roundData.previewUrl;
         audio.volume = siteVolume;
-        audio.loop = false;
         audio.load();
-        // Don't call play() - it's already playing!
-        // Just ensure it continues if it somehow paused
-        if (audio.paused) {
-          audio.play().catch(() => {
-            // If resume fails, that's okay - it should already be playing
-          });
-        }
+        
+        // Play immediately - element is already unlocked
+        audio.play().catch(err => {
+          console.error('Audio play failed:', err);
+        });
       }
     } else {
-      // Go back to silent sound when not in listening/reveal
+      // CRITICAL: Stop and clear audio completely when leaving listening/reveal
       setCurrentAudioSrc('');
       if (audioRef.current) {
-        const silentSrc = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
-        audioRef.current.src = silentSrc;
-        audioRef.current.volume = 0.01;
-        audioRef.current.loop = true;
+        audioRef.current.pause();
+        audioRef.current.src = '';
         audioRef.current.currentTime = 0;
       }
     }
@@ -438,21 +437,13 @@ function MultiplayerRoomContent() {
   const handleStartGame = () => {
     if (!socket || !isHost) return;
     
-    // CRITICAL: Pre-unlock audio element NOW (user interaction)
-    // Start playing a silent sound and keep it playing
-    // When roundData arrives, we'll change the src - iOS allows this because element is already playing
+    // Unlock audio on user interaction
     unlockAudio();
     
+    // Unlock the actual audio element that will be used
     if (audioRef.current) {
-      const audio = audioRef.current;
-      const silentSrc = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
-      audio.src = silentSrc;
-      audio.volume = 0.01;
-      audio.loop = true;
-      
-      // Start playing silently NOW (user interaction chain)
-      audio.play().catch(() => {
-        console.warn('Pre-unlock failed');
+      ensureAudioUnlocked(audioRef.current).catch(() => {
+        // If unlock fails, that's okay - will try again
       });
     }
     
