@@ -162,7 +162,6 @@ This project is open source and available under the MIT License.
 ## 👤 Author
 
 **Michael Marsillo**
-- GitHub: [@michaelmarsillo](https://github.com/michaelmarsillo)
 - LinkedIn: [michaelmarsillo](https://www.linkedin.com/in/michaelmarsillo/) 
 - Blog: [michaelmarsillo.ca/blog](https://michaelmarsillo.ca/blog)
 

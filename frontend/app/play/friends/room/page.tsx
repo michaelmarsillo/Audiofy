@@ -375,22 +375,37 @@ function MultiplayerRoomContent() {
   }, [siteVolume]);
 
   // Set audio src when round data is received (like Heardle pattern)
+  // Keep src set during both listening AND reveal phases (audio continues playing)
   useEffect(() => {
-    if (phase === 'listening' && roundData?.previewUrl) {
-      setCurrentAudioSrc(roundData.previewUrl);
+    if (roundData?.previewUrl) {
+      // Set src when we have round data, keep it during listening and reveal
+      if (phase === 'listening' || phase === 'reveal') {
+        // Only update src if it's different (to avoid unnecessary reloads)
+        if (currentAudioSrc !== roundData.previewUrl) {
+          setCurrentAudioSrc(roundData.previewUrl);
+        }
+      } else {
+        // Only clear src when moving to intermission or gameover
+        setCurrentAudioSrc('');
+        // Stop audio when leaving listening/reveal phases
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
+      }
     } else {
       setCurrentAudioSrc('');
-      // Stop audio when leaving listening phase
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-      }
     }
-  }, [phase, roundData]);
+  }, [phase, roundData, currentAudioSrc]);
 
   // Auto-play audio when src changes (like Heardle pattern)
+  // Only play during listening phase - during reveal, audio should already be playing
   useEffect(() => {
     if (!audioRef.current || !currentAudioSrc) return;
+    
+    // Only auto-play during listening phase
+    // During reveal phase, audio should already be playing from listening phase
+    if (phase !== 'listening') return;
 
     const audio = audioRef.current;
     audio.volume = siteVolume; // Set volume but don't restart playback
@@ -427,7 +442,7 @@ function MultiplayerRoomContent() {
         }
       }
     });
-  }, [currentAudioSrc]); // Removed siteVolume - volume is synced separately
+  }, [currentAudioSrc, phase]); // Added phase to dependencies
 
   const handleStartGame = () => {
     if (!socket || !isHost) return;
