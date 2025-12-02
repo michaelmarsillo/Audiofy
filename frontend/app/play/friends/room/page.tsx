@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVolume } from '@/components/VolumeControl';
-import { ensureAudioUnlocked } from '@/utils/audioUnlock';
+import { ensureAudioUnlocked, unlockAudio } from '@/utils/audioUnlock';
 import { io, Socket } from 'socket.io-client';
 import Image from 'next/image';
 
@@ -416,6 +416,32 @@ function MultiplayerRoomContent() {
 
   const handleStartGame = () => {
     if (!socket || !isHost) return;
+    
+    // Unlock audio on iOS when user clicks "Start Game"
+    // This MUST happen synchronously in the click handler for iOS
+    unlockAudio();
+    
+    // Create and immediately unlock a test audio element
+    // This establishes the audio context in the user interaction chain
+    // iOS requires this to happen synchronously in the click handler
+    try {
+      const testAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
+      testAudio.volume = 0.01;
+      // Play immediately (synchronously in click handler)
+      const playPromise = testAudio.play();
+      if (playPromise) {
+        playPromise.then(() => {
+          testAudio.pause();
+          testAudio.src = '';
+          console.log('✅ Audio context unlocked via Start Game');
+        }).catch(() => {
+          console.warn('⚠️ Audio unlock failed');
+        });
+      }
+    } catch (error) {
+      console.warn('⚠️ Audio unlock error:', error);
+    }
+    
     socket.emit('start-game', { roomCode });
   };
 
