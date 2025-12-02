@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { QuizResults } from '@/components/QuizResults';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useVolume } from '@/components/VolumeControl';
-import { ensureAudioUnlocked, unlockAudio, isElementUnlocked } from '@/utils/audioUnlock';
+import { unlockAudio } from '@/utils/audioUnlock';
 import { isIOS } from '@/utils/deviceDetection';
 
 interface Question {
@@ -84,7 +84,7 @@ function QuizPageContent() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [currentAudioSrc, setCurrentAudioSrc] = useState<string>('');
   const [showExitModal, setShowExitModal] = useState(false);
-  const [showIOSAudioButton, setShowIOSAudioButton] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(false); // Track if user has enabled audio on iOS
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [submitting, setSubmitting] = useState(false);
 
@@ -197,12 +197,12 @@ function QuizPageContent() {
     const question = quizData.questions[currentQuestion];
     if (!question.preview_url) return;
 
-    // Only set audio src during guessing phase
-    if (gamePhase === 'guessing') {
+    // Set audio src during both guessing AND reveal phases (audio continues playing)
+    if (gamePhase === 'guessing' || gamePhase === 'reveal') {
       setCurrentAudioSrc(question.preview_url);
     } else {
       setCurrentAudioSrc('');
-      // Stop audio when leaving guessing phase
+      // Stop audio when leaving guessing/reveal phases
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
@@ -211,45 +211,44 @@ function QuizPageContent() {
   }, [currentQuestion, gamePhase, quizData, quizStarted]);
 
   // Auto-play audio when src changes (like Heardle pattern)
+  // CRITICAL: Audio should play continuously through guessing AND reveal phases
   useEffect(() => {
     if (!audioRef.current || !currentAudioSrc) return;
+    
+    // Don't interrupt playback if exit modal is open
+    if (showExitModal) return;
 
     const audio = audioRef.current;
-    audio.volume = siteVolume; // Set volume but don't restart playback
+    audio.volume = siteVolume;
     
-    // For iOS: Check if audio is unlocked, show button if not
-    if (isIOS() && !isElementUnlocked(audio)) {
-      setShowIOSAudioButton(true);
-    }
-    
-    // For iOS: When src changes, we need to unlock again because changing src
-    // can reset the unlock state. Force unlock when src changes.
-    // Note: This might not work perfectly on iOS if called from useEffect,
-    // but it's the best we can do without user interaction.
-    ensureAudioUnlocked(audio, true).then(() => {
-      // Set src and load before playing
-      if (audio.src !== currentAudioSrc) {
-        audio.src = currentAudioSrc;
-        audio.load();
+    // Set src and play - only if src is actually different
+    if (audio.src !== currentAudioSrc && audio.src !== `${window.location.origin}${currentAudioSrc}`) {
+      // New src - set it and play
+      audio.src = currentAudioSrc;
+      audio.load();
+      
+      // On iOS, only play if user has enabled audio
+      if (isIOS() && !audioEnabled) {
+        return; // Wait for user to enable audio
       }
       
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.log('Audio play failed:', err);
-          // Show iOS button if play fails on iOS
-          if (isIOS()) {
-            setShowIOSAudioButton(true);
-          }
-        });
-      } else {
-        // If play succeeds, hide the button
-        if (isIOS()) {
-          setShowIOSAudioButton(false);
+      audio.play().catch((err) => {
+        console.log('Audio play failed:', err);
+      });
+    } else {
+      // Same src - just update volume, ensure it's playing
+      audio.volume = siteVolume;
+      if (audio.paused && (gamePhase === 'guessing' || gamePhase === 'reveal')) {
+        // On iOS, only play if user has enabled audio
+        if (isIOS() && !audioEnabled) {
+          return;
         }
+        audio.play().catch(() => {
+          // Ignore errors
+        });
       }
-    });
-  }, [currentAudioSrc]); // Removed siteVolume - volume is synced separately
+    }
+  }, [currentAudioSrc, showExitModal, gamePhase, siteVolume, audioEnabled]);
 
   // Update audio volume when site volume changes
   useEffect(() => {
@@ -322,56 +321,66 @@ function QuizPageContent() {
   };
 
   const startQuiz = () => {
-    // Unlock audio on iOS when user clicks "Start Quiz"
-    // This MUST happen synchronously in the click handler for iOS
+    // Unlock audio globally
     unlockAudio();
-    
-    // Also unlock the actual audio element that will be used
-    // iOS requires unlock on the SAME element that will play
-    if (audioRef.current) {
-      ensureAudioUnlocked(audioRef.current).then(() => {
-        setShowIOSAudioButton(false); // Hide button if unlock succeeds
-      }).catch(() => {
-        // If unlock fails, show button
-        if (isIOS()) {
-          setShowIOSAudioButton(true);
-        }
-      });
-    }
     
     setQuizStarted(true);
     setGamePhase('countdown');
     setPhaseTimer(5);
   };
 
-  // Handle iOS audio unlock button click
-  const handleIOSAudioUnlock = () => {
+  // Simple iOS audio enable handler - unlocks and plays audio
+  const handleEnableAudio = () => {
     if (!audioRef.current) return;
     
-    // Unlock audio on user interaction (this is the key for iOS)
+    const audio = audioRef.current;
+    
+    // Unlock audio on user interaction (iOS requirement)
     unlockAudio();
-    ensureAudioUnlocked(audioRef.current).then(() => {
-      setShowIOSAudioButton(false);
-      // Try to play if we have a source
-      if (currentAudioSrc && audioRef.current) {
-        audioRef.current.play().catch(() => {
-          // If play fails, keep button visible
-          setShowIOSAudioButton(true);
-        });
-      }
-    }).catch(() => {
-      // Keep button visible if unlock fails
-      setShowIOSAudioButton(true);
-    });
+    
+    // Set src if we have one, then unlock and play
+    if (currentAudioSrc) {
+      audio.src = currentAudioSrc;
+      audio.load();
+    }
+    
+    // Play a silent sound to unlock the element
+    const silentSrc = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+    const originalSrc = audio.src || '';
+    audio.src = silentSrc;
+    audio.volume = 0.01;
+    
+    audio.play()
+      .then(() => {
+        // Success - restore src and mark as enabled
+        audio.pause();
+        audio.currentTime = 0;
+        audio.src = originalSrc || currentAudioSrc || '';
+        audio.volume = siteVolume;
+        audio.load();
+        setAudioEnabled(true);
+        
+        // Now play the actual audio
+        if (currentAudioSrc) {
+          audio.play().catch(() => {
+            // If play fails, that's okay
+          });
+        }
+      })
+      .catch(() => {
+        // If unlock fails, restore anyway
+        audio.src = originalSrc || currentAudioSrc || '';
+        audio.volume = siteVolume;
+        setAudioEnabled(true);
+      });
   };
 
   const resetQuiz = () => {
-    // Stop any playing audio but KEEP the element (for iOS unlock)
+    // Stop any playing audio
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.src = '';
       audioRef.current.currentTime = 0;
-      // Don't set to null - keep the unlocked element!
     }
     
     setQuizData(null);
@@ -383,11 +392,16 @@ function QuizPageContent() {
     setPhaseTimer(5);
     setSelectedAnswer(null);
     setIsCorrect(false);
+    setAudioEnabled(false); // Reset audio enabled state
     isSubmittingRef.current = false; // Reset for new quiz
     fetchQuiz();
   };
 
   const handleExitQuiz = () => {
+    // Pause audio when exit modal opens
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
     setShowExitModal(true);
   };
 
@@ -396,6 +410,12 @@ function QuizPageContent() {
   };
 
   const cancelExit = () => {
+    // Resume audio when user continues
+    if (audioRef.current && currentAudioSrc) {
+      audioRef.current.play().catch(() => {
+        // Ignore errors
+      });
+    }
     setShowExitModal(false);
   };
 
@@ -509,21 +529,21 @@ function QuizPageContent() {
           // Auto-stop at 7 seconds handled by QuizQuestion component
         }}
         onPlay={() => {
-          // Hide iOS button when audio plays successfully
+          // Mark audio as enabled when it plays
           if (isIOS()) {
-            setShowIOSAudioButton(false);
+            setAudioEnabled(true);
           }
         }}
       />
       
-      {/* iOS-only Audio Enable Button */}
-      {isIOS() && showIOSAudioButton && quizStarted && (
+      {/* iOS-only Audio Enable Button - Show when audio is needed but not enabled */}
+      {isIOS() && quizStarted && !audioEnabled && (gamePhase === 'guessing' || gamePhase === 'reveal') && currentAudioSrc && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
           <button
-            onClick={handleIOSAudioUnlock}
-            className="bg-gradient-to-r from-[var(--accent-primary)] to-[var(--music-purple)] text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-2xl transition-all duration-300"
+            onClick={handleEnableAudio}
+            className="bg-gradient-to-r from-[var(--accent-primary)] to-[var(--music-purple)] text-white px-8 py-4 rounded-xl font-bold text-lg shadow-2xl hover:shadow-3xl transition-all duration-300 animate-pulse"
           >
-            🔊 Enable Audio
+            🔊 Tap to Enable Audio
           </button>
         </div>
       )}

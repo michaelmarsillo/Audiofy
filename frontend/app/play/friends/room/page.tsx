@@ -331,7 +331,8 @@ function MultiplayerRoomContent() {
         // Move to reveal (keep audio playing!)
         setPhase('reveal');
         setTimer(5);
-        // Don't pause audio - let it keep playing during reveal
+        // CRITICAL: Don't pause audio - let it keep playing during reveal
+        // The useEffect will handle volume updates but won't interrupt playback
         break;
 
       case 'reveal':
@@ -392,11 +393,10 @@ function MultiplayerRoomContent() {
     }
   }, [siteVolume]);
 
-  // Set audio src when round data is received and play immediately
+  // Set audio src when round data is received
   useEffect(() => {
     if (!roundData?.previewUrl) {
       setCurrentAudioSrc('');
-      // CRITICAL: Stop and clear audio completely when no round data
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.src = '';
@@ -408,20 +408,24 @@ function MultiplayerRoomContent() {
     if (phase === 'listening' || phase === 'reveal') {
       setCurrentAudioSrc(roundData.previewUrl);
       
-      // Set src and play - element is already unlocked from "Start Game" click
       if (audioRef.current) {
         const audio = audioRef.current;
-        audio.src = roundData.previewUrl;
-        audio.volume = siteVolume;
-        audio.load();
         
-        // Play immediately - element is already unlocked
-        audio.play().catch(err => {
-          console.error('Audio play failed:', err);
-        });
+        // Only set src and load if it's different (to avoid interrupting playback)
+        if (audio.src !== roundData.previewUrl && audio.src !== `${window.location.origin}${roundData.previewUrl}`) {
+          audio.src = roundData.previewUrl;
+          audio.volume = siteVolume;
+          audio.load();
+          audio.play().catch(err => {
+            console.error('Audio play failed:', err);
+          });
+        } else {
+          // Same src - just update volume, don't interrupt playback
+          audio.volume = siteVolume;
+        }
       }
     } else {
-      // CRITICAL: Stop and clear audio completely when leaving listening/reveal
+      // Stop audio when leaving listening/reveal
       setCurrentAudioSrc('');
       if (audioRef.current) {
         audioRef.current.pause();
