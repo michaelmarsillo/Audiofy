@@ -66,7 +66,7 @@ export function QuizQuestion({ question, onAnswerSelect, timeLeft, isPaused = fa
       
       return () => clearInterval(checkTime);
     }
-  }, [question]);
+  }, [question, siteVolume]);
 
   // Stop audio when time runs out
   useEffect(() => {
@@ -96,7 +96,7 @@ export function QuizQuestion({ question, onAnswerSelect, timeLeft, isPaused = fa
         }
       }
     }
-  }, [isPaused]);
+  }, [isPaused, isPlaying, wasPlayingBeforePause]);
 
   const handlePlayPause = () => {
     if (!audioRef.current) return;
@@ -171,6 +171,7 @@ export function QuizQuestion({ question, onAnswerSelect, timeLeft, isPaused = fa
           {/* Cover Art */}
           <div className="relative w-80 h-80 mx-auto rounded-2xl overflow-hidden shadow-2xl border-2 border-[var(--bg-accent)]">
             {question.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img 
                 src={question.image} 
                 alt="Album Cover"

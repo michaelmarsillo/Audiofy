@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { QuizResults } from '@/components/QuizResults';
@@ -80,144 +80,12 @@ function QuizPageContent() {
   const [isCorrect, setIsCorrect] = useState<boolean>(false);
   
   // Audio and UI states
-  const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [showExitModal, setShowExitModal] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [submitting, setSubmitting] = useState(false);
 
-  // Fetch quiz data on component mount
-  useEffect(() => {
-    fetchQuiz();
-  }, [playlist, genre]);
-
-  // Main game timer - handles all phases
-  useEffect(() => {
-    // Stop timer if quiz not started, results shown, exit modal open, or currently submitting
-    if (!quizStarted || results || showExitModal || isSubmittingRef.current) return;
-
-    const timer = setInterval(() => {
-      setPhaseTimer((prev) => {
-        if (prev <= 1) {
-          handlePhaseTransition();
-          return getNextPhaseDuration();
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [gamePhase, currentQuestion, quizStarted, showExitModal, results]);
-
-  // Audio control
-  useEffect(() => {
-    if (!quizData || !quizStarted) return;
-
-    const question = quizData.questions[currentQuestion];
-    if (!question.preview_url) return;
-
-    // Create new audio only when starting guessing phase
-    if (gamePhase === 'guessing') {
-      const audio = new Audio(question.preview_url);
-      audio.volume = siteVolume;
-      audio.currentTime = 0;
-      // Ensure audio is unlocked before playing (iOS Safari fix)
-      ensureAudioUnlocked(audio).then(() => {
-        audio.play().catch(() => {});
-      });
-      setAudioRef(audio);
-    }
-
-    // Stop audio when leaving guessing or reveal phases
-    if (gamePhase === 'countdown' || gamePhase === 'transition') {
-      if (audioRef) {
-        audioRef.pause();
-        audioRef.src = '';
-        setAudioRef(null);
-      }
-    }
-
-    return () => {
-      // Cleanup on unmount or question change
-      if (gamePhase === 'countdown' || gamePhase === 'transition') {
-        if (audioRef) {
-          audioRef.pause();
-          audioRef.src = '';
-        }
-      }
-    };
-  }, [currentQuestion, gamePhase, quizData, quizStarted, siteVolume]);
-
-  // Update audio volume when site volume changes
-  useEffect(() => {
-    if (audioRef) {
-      audioRef.volume = siteVolume;
-    }
-  }, [siteVolume]);
-
-  // No longer needed - we submit directly in handlePhaseTransition
-
-  const getNextPhaseDuration = () => {
-    if (gamePhase === 'countdown') return 7; // guessing phase
-    if (gamePhase === 'guessing') return 5; // reveal phase
-    if (gamePhase === 'reveal') return 5; // transition phase
-    if (gamePhase === 'transition') return 7; // next guessing phase
-    return 5;
-  };
-
-  const handlePhaseTransition = () => {
-    // Prevent any transitions if already submitting or results are shown
-    if (isSubmittingRef.current || results) return;
-    
-    if (gamePhase === 'countdown') {
-      setGamePhase('guessing');
-    } else if (gamePhase === 'guessing') {
-      // Time's up - if no answer selected, it's already marked as wrong (empty string from initialization)
-      // No need to update anything, the initial empty string is already there
-      setGamePhase('reveal');
-    } else if (gamePhase === 'reveal') {
-      // Move to next question or finish
-      if (quizData && currentQuestion < quizData.questions.length - 1) {
-        setGamePhase('transition');
-      } else {
-        // Quiz complete - submit answers
-        if (!isSubmittingRef.current) {
-          isSubmittingRef.current = true;
-          submitQuiz(answersRef.current);
-        }
-      }
-    } else if (gamePhase === 'transition') {
-      setCurrentQuestion(currentQuestion + 1);
-      setSelectedAnswer(null);
-      setIsCorrect(false);
-      setGamePhase('guessing');
-    }
-  };
-
-  const handleAnswerSelection = (answer: string) => {
-    if (!quizData || selectedAnswer || gamePhase !== 'guessing') return;
-
-    const correct = answer === quizData.questions[currentQuestion].correct_answer;
-    setSelectedAnswer(answer);
-    setIsCorrect(correct);
-
-    /**
-     * CRITICAL: Update ref directly for immediate persistence
-     * - answersRef.current is mutated directly (not copied) for instant updates
-     * - This ensures answers persist across React render cycles
-     * - State is updated separately for UI reactivity
-     */
-    answersRef.current[currentQuestion] = {
-      question_id: quizData.questions[currentQuestion].id,
-      selected_answer: answer
-    };
-    
-    // Sync state with ref for UI updates
-    setAnswers([...answersRef.current]);
-    
-    console.log(`✅ Q${currentQuestion + 1} answered:`, answer, correct ? '✓' : '✗');
-  };
-
-  const fetchQuiz = async () => {
+  const fetchQuiz = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -257,7 +125,139 @@ function QuizPageContent() {
       console.error('Error fetching quiz:', error);
       setLoading(false);
     }
+  }, [playlist, genre]);
+
+  // Fetch quiz data on component mount
+  useEffect(() => {
+    fetchQuiz();
+  }, [fetchQuiz]);
+
+  const getNextPhaseDuration = useCallback(() => {
+    if (gamePhase === 'countdown') return 7; // guessing phase
+    if (gamePhase === 'guessing') return 5; // reveal phase
+    if (gamePhase === 'reveal') return 5; // transition phase
+    if (gamePhase === 'transition') return 7; // next guessing phase
+    return 5;
+  }, [gamePhase]);
+
+  const handlePhaseTransition = useCallback(() => {
+    // Prevent any transitions if already submitting or results are shown
+    if (isSubmittingRef.current || results) return;
+    
+    if (gamePhase === 'countdown') {
+      setGamePhase('guessing');
+    } else if (gamePhase === 'guessing') {
+      // Time's up - if no answer selected, it's already marked as wrong (empty string from initialization)
+      // No need to update anything, the initial empty string is already there
+      setGamePhase('reveal');
+    } else if (gamePhase === 'reveal') {
+      // Move to next question or finish
+      if (quizData && currentQuestion < quizData.questions.length - 1) {
+        setGamePhase('transition');
+      } else {
+        // Quiz complete - submit answers
+        if (!isSubmittingRef.current) {
+          isSubmittingRef.current = true;
+          submitQuiz(answersRef.current);
+        }
+      }
+    } else if (gamePhase === 'transition') {
+      setCurrentQuestion(currentQuestion + 1);
+      setSelectedAnswer(null);
+      setIsCorrect(false);
+      setGamePhase('guessing');
+    }
+  }, [gamePhase, results, quizData, currentQuestion]);
+
+  // Main game timer - handles all phases
+  useEffect(() => {
+    // Stop timer if quiz not started, results shown, exit modal open, or currently submitting
+    if (!quizStarted || results || showExitModal || isSubmittingRef.current) return;
+
+    const timer = setInterval(() => {
+      setPhaseTimer((prev) => {
+        if (prev <= 1) {
+          handlePhaseTransition();
+          return getNextPhaseDuration();
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [gamePhase, currentQuestion, quizStarted, showExitModal, results, handlePhaseTransition, getNextPhaseDuration]);
+
+  // Audio control
+  useEffect(() => {
+    if (!quizData || !quizStarted) return;
+
+    const question = quizData.questions[currentQuestion];
+    if (!question.preview_url) return;
+
+    // Clean up previous audio first
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
+    }
+
+    // Create new audio only when starting guessing phase
+    if (gamePhase === 'guessing') {
+      const audio = new Audio(question.preview_url);
+      audio.volume = siteVolume;
+      audio.currentTime = 0;
+      
+      // Ensure audio is unlocked before playing (iOS Safari fix)
+      // This works on both desktop and mobile
+      ensureAudioUnlocked(audio).then(() => {
+        audio.play().catch(() => {});
+      });
+      audioRef.current = audio;
+    }
+
+    return () => {
+      // Cleanup on unmount or question/phase change
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current = null;
+      }
+    };
+  }, [currentQuestion, gamePhase, quizData, quizStarted, siteVolume]);
+
+  // Update audio volume when site volume changes
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = siteVolume;
+    }
+  }, [siteVolume]);
+
+  // No longer needed - we submit directly in handlePhaseTransition
+
+  const handleAnswerSelection = (answer: string) => {
+    if (!quizData || selectedAnswer || gamePhase !== 'guessing') return;
+
+    const correct = answer === quizData.questions[currentQuestion].correct_answer;
+    setSelectedAnswer(answer);
+    setIsCorrect(correct);
+
+    /**
+     * CRITICAL: Update ref directly for immediate persistence
+     * - answersRef.current is mutated directly (not copied) for instant updates
+     * - This ensures answers persist across React render cycles
+     * - State is updated separately for UI reactivity
+     */
+    answersRef.current[currentQuestion] = {
+      question_id: quizData.questions[currentQuestion].id,
+      selected_answer: answer
+    };
+    
+    // Sync state with ref for UI updates
+    setAnswers([...answersRef.current]);
+    
+    console.log(`✅ Q${currentQuestion + 1} answered:`, answer, correct ? '✓' : '✗');
   };
+
 
   const submitQuiz = async (finalAnswers: Answer[]) => {
     if (!quizData) return;
@@ -305,10 +305,10 @@ function QuizPageContent() {
 
   const resetQuiz = () => {
     // Stop any playing audio
-    if (audioRef) {
-      audioRef.pause();
-      audioRef.src = '';
-      setAudioRef(null);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
     }
     
     setQuizData(null);
@@ -563,6 +563,7 @@ function QuizPageContent() {
             {/* Album Cover & Info */}
             <div className="bg-[var(--bg-secondary)] border border-[var(--bg-accent)] rounded-2xl p-8 mb-6 flex items-center gap-6 max-w-2xl w-full">
               {currentQuestionData.image && (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={currentQuestionData.image}
                   alt={currentQuestionData.song_name || currentQuestionData.correct_answer}

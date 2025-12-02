@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVolume } from '@/components/VolumeControl';
@@ -289,31 +289,15 @@ function MultiplayerRoomContent() {
     setSocket(newSocket);
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      const timer = timerRef.current;
+      if (timer) clearInterval(timer);
       if (audioRef.current) audioRef.current.pause();
       newSocket.emit('leave-room');
       newSocket.close();
     };
   }, [roomCode, router, user]);
 
-  // Game timer logic (clean version like Arcade)
-  useEffect(() => {
-    if (phase === 'waiting' || phase === 'gameover') return;
-
-    let interval: NodeJS.Timeout;
-
-    if (timer > 0) {
-      interval = setInterval(() => {
-        setTimer((prev) => prev - 1);
-      }, 1000);
-    } else if (timer === 0) {
-      handlePhaseTransition();
-    }
-
-    return () => clearInterval(interval);
-  }, [timer, phase]);
-
-  const handlePhaseTransition = () => {
+  const handlePhaseTransition = useCallback(() => {
     if (!socket) return;
 
     switch (phase) {
@@ -361,7 +345,24 @@ function MultiplayerRoomContent() {
       default:
         break;
     }
-  };
+  }, [socket, phase, roomCode, currentRound, totalRounds]);
+
+  // Game timer logic (clean version like Arcade)
+  useEffect(() => {
+    if (phase === 'waiting' || phase === 'gameover') return;
+
+    let interval: NodeJS.Timeout;
+
+    if (timer > 0) {
+      interval = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+    } else if (timer === 0) {
+      handlePhaseTransition();
+    }
+
+    return () => clearInterval(interval);
+  }, [timer, phase, handlePhaseTransition]);
 
   // Volume sync
   useEffect(() => {
@@ -386,6 +387,7 @@ function MultiplayerRoomContent() {
       audioRef.current = audio;
       
       // Ensure audio is unlocked before playing (iOS Safari fix)
+      // This works on both desktop and mobile
       ensureAudioUnlocked(audio).then(() => {
         const playPromise = audio.play();
         if (playPromise !== undefined) {
