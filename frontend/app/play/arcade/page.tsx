@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useVolume } from '@/components/VolumeControl';
-import { ensureAudioUnlocked, unlockAudio } from '@/utils/audioUnlock';
+import { unlockAudio } from '@/utils/audioUnlock';
+import { isIOS } from '@/utils/deviceDetection';
 
 // Game Phases
 type GamePhase = 'welcome' | 'countdown' | 'listening' | 'discussion' | 'reveal' | 'gameover';
@@ -21,6 +22,8 @@ interface Song {
 export default function ArcadePage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { siteVolume } = useVolume();
+  const [audioEnabled, setAudioEnabled] = useState(false); // Track if user has enabled audio on iOS
+  const [currentAudioSrc, setCurrentAudioSrc] = useState<string>(''); // Track current audio src like multiplayer
 
   // Game State
   const [phase, setPhase] = useState<GamePhase>('welcome');
@@ -88,30 +91,109 @@ export default function ArcadePage() {
     );
   };
 
-  // Audio Management
-  const playAudio = () => {
-    if (audioRef.current) {
-      // If starting a new song (countdown -> listening), set source
-      if (phase === 'countdown') {
-        audioRef.current.src = songs[currentRound - 1]?.preview_url || '';
+  // Audio Management - Use same pattern as multiplayer: useEffect watches phase/songs
+  useEffect(() => {
+    if (!songs.length || currentRound < 1) {
+      setCurrentAudioSrc('');
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
         audioRef.current.currentTime = 0;
       }
-      
-      // Set volume before playing
-      audioRef.current.volume = siteVolume;
-
-      // Ensure audio is unlocked before playing (iOS Safari fix)
-      ensureAudioUnlocked(audioRef.current).then(() => {
-        const playPromise = audioRef.current?.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(error => {
-            console.log("Playback prevented:", error);
-          });
-        }
-        isPlayingRef.current = true;
-      });
+      return;
     }
-  };
+
+    const currentSong = songs[currentRound - 1];
+    if (!currentSong?.preview_url) {
+      setCurrentAudioSrc('');
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current.currentTime = 0;
+      }
+      return;
+    }
+
+    // Set src during countdown, listening, or reveal (so iOS can unlock early)
+    if (phase === 'countdown' || phase === 'listening' || phase === 'reveal') {
+      setCurrentAudioSrc(currentSong.preview_url);
+      
+      if (audioRef.current) {
+        const audio = audioRef.current;
+        
+        // Only set src if it's different (to avoid interrupting playback)
+        const needsNewSrc = audio.src !== currentSong.preview_url && audio.src !== `${window.location.origin}${currentSong.preview_url}`;
+        
+        if (needsNewSrc) {
+          audio.src = currentSong.preview_url;
+          audio.volume = siteVolume;
+          // Don't call load() explicitly - setting src triggers load automatically
+          // Wait for canplay before playing to avoid interruption
+          const handleCanPlay = () => {
+            // Check current phase when audio is ready (not from closure)
+            const currentPhase = phase;
+            
+            // On iOS, only play if user has enabled audio (skip during countdown)
+            if (isIOS() && !audioEnabled && currentPhase !== 'countdown') {
+              audio.oncanplay = null;
+              return; // Wait for user to enable audio
+            }
+            
+            // Only auto-play during listening/reveal phases (not countdown)
+            if (currentPhase === 'listening' || currentPhase === 'reveal') {
+              audio.play().catch(err => {
+                console.error('Audio play failed:', err);
+              });
+            }
+            audio.oncanplay = null; // Clean up
+          };
+          
+          audio.oncanplay = handleCanPlay;
+        } else {
+          // Same src - just update volume, ensure it's playing
+          audio.volume = siteVolume;
+          
+          // On iOS, only play if user has enabled audio
+          if (isIOS() && !audioEnabled && phase !== 'countdown') {
+            return; // Wait for user to enable audio
+          }
+          
+          // Always ensure it's playing during listening/reveal phases
+          // If audio is ready, play immediately; otherwise wait for it
+          if (phase === 'listening' || phase === 'reveal') {
+            if (audio.readyState >= 2) { // HAVE_CURRENT_DATA or higher
+              // Audio is ready, play immediately
+              if (audio.paused) {
+                audio.play().catch(() => {
+                  // Ignore errors
+                });
+              }
+            } else {
+              // Audio not ready yet, wait for it
+              const handleCanPlay = () => {
+                const currentPhase = phase;
+                if (audio.paused && (currentPhase === 'listening' || currentPhase === 'reveal')) {
+                  audio.play().catch(() => {
+                    // Ignore errors
+                  });
+                }
+                audio.oncanplay = null; // Clean up
+              };
+              audio.oncanplay = handleCanPlay;
+            }
+          }
+        }
+      }
+    } else {
+      // Stop audio when leaving listening/reveal
+      setCurrentAudioSrc('');
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current.currentTime = 0;
+      }
+    }
+  }, [phase, currentRound, songs, siteVolume, audioEnabled]);
 
   const pauseAudio = () => {
     if (audioRef.current) {
@@ -120,11 +202,58 @@ export default function ArcadePage() {
     }
   };
 
+  // Simple iOS audio enable handler - unlocks and plays audio
+  const handleEnableAudio = () => {
+    if (!audioRef.current) return;
+    
+    const audio = audioRef.current;
+    
+    // Unlock audio on user interaction (iOS requirement)
+    unlockAudio();
+    
+    // Set src if we have one, then unlock and play
+    const currentSong = songs[currentRound - 1];
+    if (currentSong?.preview_url) {
+      audio.src = currentSong.preview_url;
+      audio.load();
+    }
+    
+    // Play a silent sound to unlock the element
+    const silentSrc = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+    const originalSrc = audio.src || '';
+    audio.src = silentSrc;
+    audio.volume = 0.01;
+    
+    audio.play()
+      .then(() => {
+        // Success - restore src and mark as enabled
+        audio.pause();
+        audio.currentTime = 0;
+        audio.src = originalSrc || currentSong?.preview_url || '';
+        audio.volume = siteVolume;
+        audio.load();
+        setAudioEnabled(true);
+        
+        // Now play the actual audio if in listening/reveal phase
+        if (currentSong?.preview_url && (phase === 'listening' || phase === 'reveal')) {
+          audio.play().catch(() => {
+            // If play fails, that's okay
+          });
+        }
+      })
+      .catch(() => {
+        // If unlock fails, restore anyway
+        audio.src = originalSrc || currentSong?.preview_url || '';
+        audio.volume = siteVolume;
+        setAudioEnabled(true);
+      });
+  };
+
   // Initial Audio Unlock & Start
   const startGame = async () => {
     setLoading(true);
     
-    // Unlock audio on iOS when user clicks "Play"
+    // Unlock audio globally (works for both desktop and iOS)
     unlockAudio();
 
     try {
@@ -168,11 +297,7 @@ export default function ArcadePage() {
         setTimeout(() => {
             setPhase('countdown');
             setTimer(5);
-            // Pre-load the first song
-            if (audioRef.current && gameSongs[0]?.preview_url) {
-                audioRef.current.src = gameSongs[0].preview_url;
-                audioRef.current.load();
-            }
+            // Don't pre-load here - let playAudio() handle it when transitioning to listening
         }, 100);
         
       } else {
@@ -234,18 +359,17 @@ export default function ArcadePage() {
       case 'countdown':
         setPhase('listening');
         setTimer(10);
-        playAudio();
+        // Audio will be handled by useEffect watching phase
         break;
       case 'listening':
         setPhase('discussion');
         setTimer(7);
-        // Pause audio during discussion
-        pauseAudio(); 
+        // Audio will be paused by useEffect when phase changes
         break;
       case 'discussion':
         setPhase('reveal');
         setTimer(7);
-        playAudio(); // Resume for victory lap
+        // Audio will be handled by useEffect watching phase
         break;
       case 'reveal':
         if (currentRound < TOTAL_ROUNDS) {
@@ -421,7 +545,36 @@ export default function ArcadePage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] p-6 relative overflow-hidden flex flex-col">
       {/* Audio Element */}
-      <audio ref={audioRef} className="hidden" />
+      <audio 
+        ref={audioRef} 
+        src={currentAudioSrc || undefined}
+        className="hidden"
+        onPlay={() => {
+          if (isIOS()) {
+            setAudioEnabled(true);
+          }
+        }}
+      />
+      
+      {/* iOS-only Audio Enable Button - ONLY show on actual iOS devices */}
+      {(() => {
+        // Direct check: Must be iOS device AND NOT desktop
+        if (typeof window === 'undefined') return false;
+        const ua = navigator.userAgent.toLowerCase();
+        const hasIOSDevice = /iphone|ipad|ipod/.test(ua);
+        const isDesktop = /windows|macintosh|linux|x11/.test(ua) && !/iphone|ipad|ipod/.test(ua);
+        const actuallyIOS = hasIOSDevice && !isDesktop;
+        return actuallyIOS && !audioEnabled && (phase === 'countdown' || phase === 'listening' || phase === 'reveal') && songs[currentRound - 1]?.preview_url;
+      })() && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
+          <button
+            onClick={handleEnableAudio}
+            className="bg-gradient-to-r from-[var(--accent-primary)] to-[var(--music-purple)] text-white px-8 py-4 rounded-xl font-bold text-lg shadow-2xl hover:shadow-3xl transition-all duration-300 animate-pulse"
+          >
+            🔊 Tap to Enable Audio
+          </button>
+        </div>
+      )}
 
       {/* Settings Modal */}
       {showSettings && (

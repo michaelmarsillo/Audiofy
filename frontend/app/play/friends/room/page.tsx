@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVolume } from '@/components/VolumeControl';
-import { unlockAudio, ensureAudioUnlocked } from '@/utils/audioUnlock';
+import { unlockAudio } from '@/utils/audioUnlock';
 import { isIOS } from '@/utils/deviceDetection';
 import { io, Socket } from 'socket.io-client';
 import Image from 'next/image';
@@ -146,6 +146,7 @@ function MultiplayerRoomContent() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [currentAudioSrc, setCurrentAudioSrc] = useState<string>('');
+  const [audioEnabled, setAudioEnabled] = useState(false); // Track if user has enabled audio on iOS
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Genre options (only available playlists)
@@ -314,14 +315,6 @@ function MultiplayerRoomContent() {
     switch (phase) {
       case 'countdown':
         // Start listening phase
-        // Unlock audio BEFORE transitioning to listening phase
-        // This ensures audio is ready when we set the src
-        if (audioRef.current && isIOS()) {
-          // Pre-unlock the audio element so it's ready when src is set
-          ensureAudioUnlocked(audioRef.current, true).catch(() => {
-            // If unlock fails, that's okay - will try again
-          });
-        }
         setPhase('listening');
         setTimer(7);
         socket.emit('request-round', { roomCode, roundIndex: currentRound });
@@ -405,23 +398,74 @@ function MultiplayerRoomContent() {
       return;
     }
 
-    if (phase === 'listening' || phase === 'reveal') {
+    // Set src during countdown, listening, or reveal (so iOS can unlock early)
+    if (phase === 'countdown' || phase === 'listening' || phase === 'reveal') {
       setCurrentAudioSrc(roundData.previewUrl);
       
       if (audioRef.current) {
         const audio = audioRef.current;
         
-        // Only set src and load if it's different (to avoid interrupting playback)
-        if (audio.src !== roundData.previewUrl && audio.src !== `${window.location.origin}${roundData.previewUrl}`) {
+        // Only set src if it's different (to avoid interrupting playback)
+        const needsNewSrc = audio.src !== roundData.previewUrl && audio.src !== `${window.location.origin}${roundData.previewUrl}`;
+        
+        if (needsNewSrc) {
           audio.src = roundData.previewUrl;
           audio.volume = siteVolume;
-          audio.load();
-          audio.play().catch(err => {
-            console.error('Audio play failed:', err);
-          });
+          // Don't call load() explicitly - setting src triggers load automatically
+          // Wait for canplay before playing to avoid interruption
+          const handleCanPlay = () => {
+            // Check current phase when audio is ready (not from closure)
+            const currentPhase = phase;
+            
+            // On iOS, only play if user has enabled audio (skip during countdown)
+            if (isIOS() && !audioEnabled && currentPhase !== 'countdown') {
+              audio.oncanplay = null;
+              return; // Wait for user to enable audio
+            }
+            
+            // Only auto-play during listening/reveal phases (not countdown)
+            if (currentPhase === 'listening' || currentPhase === 'reveal') {
+              audio.play().catch(err => {
+                console.error('Audio play failed:', err);
+              });
+            }
+            audio.oncanplay = null; // Clean up
+          };
+          
+          audio.oncanplay = handleCanPlay;
         } else {
-          // Same src - just update volume, don't interrupt playback
+          // Same src - just update volume, ensure it's playing
           audio.volume = siteVolume;
+          
+          // On iOS, only play if user has enabled audio
+          if (isIOS() && !audioEnabled && phase !== 'countdown') {
+            return; // Wait for user to enable audio
+          }
+          
+          // Always ensure it's playing during listening/reveal phases
+          // If audio is ready, play immediately; otherwise wait for it
+          if (phase === 'listening' || phase === 'reveal') {
+            if (audio.readyState >= 2) { // HAVE_CURRENT_DATA or higher
+              // Audio is ready, play immediately
+              if (audio.paused) {
+                audio.play().catch(() => {
+                  // Ignore errors
+                });
+              }
+            } else {
+              // Audio not ready yet, wait for it
+              const handleCanPlay = () => {
+                const currentPhase = phase;
+                if (audio.paused && (currentPhase === 'listening' || currentPhase === 'reveal')) {
+                  audio.play().catch(() => {
+                    // Ignore errors
+                  });
+                }
+                audio.oncanplay = null; // Clean up
+              };
+              audio.oncanplay = handleCanPlay;
+            }
+          }
         }
       }
     } else {
@@ -433,7 +477,7 @@ function MultiplayerRoomContent() {
         audioRef.current.currentTime = 0;
       }
     }
-  }, [phase, roundData, siteVolume]);
+  }, [phase, roundData, siteVolume, audioEnabled]);
 
   // Note: Audio playback is now handled in the roundData useEffect above
   // This ensures we unlock and play immediately when roundData arrives during listening phase
@@ -441,17 +485,56 @@ function MultiplayerRoomContent() {
   const handleStartGame = () => {
     if (!socket || !isHost) return;
     
-    // Unlock audio on user interaction
+    // Unlock audio globally
     unlockAudio();
     
-    // Unlock the actual audio element that will be used
-    if (audioRef.current) {
-      ensureAudioUnlocked(audioRef.current).catch(() => {
-        // If unlock fails, that's okay - will try again
-      });
+    socket.emit('start-game', { roomCode });
+  };
+
+  // Simple iOS audio enable handler - unlocks and plays audio
+  const handleEnableAudio = () => {
+    if (!audioRef.current) return;
+    
+    const audio = audioRef.current;
+    
+    // Unlock audio on user interaction (iOS requirement)
+    unlockAudio();
+    
+    // Set src if we have one, then unlock and play
+    if (currentAudioSrc) {
+      audio.src = currentAudioSrc;
+      audio.load();
     }
     
-    socket.emit('start-game', { roomCode });
+    // Play a silent sound to unlock the element
+    const silentSrc = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+    const originalSrc = audio.src || '';
+    audio.src = silentSrc;
+    audio.volume = 0.01;
+    
+    audio.play()
+      .then(() => {
+        // Success - restore src and mark as enabled
+        audio.pause();
+        audio.currentTime = 0;
+        audio.src = originalSrc || currentAudioSrc || '';
+        audio.volume = siteVolume;
+        audio.load();
+        setAudioEnabled(true);
+        
+        // Now play the actual audio
+        if (currentAudioSrc && (phase === 'listening' || phase === 'reveal')) {
+          audio.play().catch(() => {
+            // If play fails, that's okay
+          });
+        }
+      })
+      .catch(() => {
+        // If unlock fails, restore anyway
+        audio.src = originalSrc || currentAudioSrc || '';
+        audio.volume = siteVolume;
+        setAudioEnabled(true);
+      });
   };
 
   const handleUpdateSettings = (newGenre: string) => {
@@ -503,14 +586,14 @@ function MultiplayerRoomContent() {
         {/* Always render the audio element (even if src is empty) so we can unlock it */}
         <audio
           ref={audioRef}
-          src={currentAudioSrc || ''}
+          src={currentAudioSrc || undefined}
           onPlay={() => {
-            // Hide iOS button when audio plays successfully
             if (isIOS()) {
-              // Button will hide automatically when phase changes
+              setAudioEnabled(true);
             }
           }}
         />
+        
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[var(--accent-primary)] rounded-full blur-[150px]"></div>
@@ -772,9 +855,11 @@ function MultiplayerRoomContent() {
         {/* Always render the audio element (even if src is empty) so we can unlock it */}
         <audio
           ref={audioRef}
-          src={currentAudioSrc || ''}
+          src={currentAudioSrc || undefined}
           onPlay={() => {
-            // Audio is playing - button will hide automatically when phase changes
+            if (isIOS()) {
+              setAudioEnabled(true);
+            }
           }}
         />
         
@@ -784,6 +869,18 @@ function MultiplayerRoomContent() {
           <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-[var(--music-purple)] rounded-full blur-[150px]"></div>
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-[var(--music-pink)] rounded-full blur-[150px]"></div>
         </div>
+
+        {/* iOS-only Audio Enable Button - Show during countdown or when audio is needed but not enabled */}
+        {isIOS() && !audioEnabled && (phase === 'listening' || phase === 'reveal') && currentAudioSrc && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
+            <button
+              onClick={handleEnableAudio}
+              className="bg-gradient-to-r from-[var(--accent-primary)] to-[var(--music-purple)] text-white px-8 py-4 rounded-xl font-bold text-lg shadow-2xl hover:shadow-3xl transition-all duration-300 animate-pulse"
+            >
+              🔊 Tap to Enable Audio
+            </button>
+          </div>
+        )}
 
         <div className="relative z-10">
           {/* Round Indicators */}
