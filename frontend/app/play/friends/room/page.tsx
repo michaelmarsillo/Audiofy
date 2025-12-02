@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVolume } from '@/components/VolumeControl';
-import { unlockAudio, ensureAudioUnlocked } from '@/utils/audioUnlock';
+import { unlockAudio, ensureAudioUnlocked, isElementUnlocked } from '@/utils/audioUnlock';
+import { isIOS } from '@/utils/deviceDetection';
 import { io, Socket } from 'socket.io-client';
 import Image from 'next/image';
 
@@ -145,6 +146,7 @@ function MultiplayerRoomContent() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [currentAudioSrc, setCurrentAudioSrc] = useState<string>('');
+  const [showIOSAudioButton, setShowIOSAudioButton] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Genre options (only available playlists)
@@ -391,7 +393,12 @@ function MultiplayerRoomContent() {
     if (!audioRef.current || !currentAudioSrc) return;
 
     const audio = audioRef.current;
-    audio.volume = siteVolume;
+    audio.volume = siteVolume; // Set volume but don't restart playback
+    
+    // For iOS: Check if audio is unlocked, show button if not
+    if (isIOS() && !isElementUnlocked(audio)) {
+      setShowIOSAudioButton(true);
+    }
     
     // For iOS: When src changes, we need to unlock again because changing src
     // can reset the unlock state. Force unlock when src changes.
@@ -408,10 +415,19 @@ function MultiplayerRoomContent() {
       if (playPromise !== undefined) {
         playPromise.catch(err => {
           console.error('Audio play error:', err);
+          // Show iOS button if play fails on iOS
+          if (isIOS()) {
+            setShowIOSAudioButton(true);
+          }
         });
+      } else {
+        // If play succeeds, hide the button
+        if (isIOS()) {
+          setShowIOSAudioButton(false);
+        }
       }
     });
-  }, [currentAudioSrc, siteVolume]);
+  }, [currentAudioSrc]); // Removed siteVolume - volume is synced separately
 
   const handleStartGame = () => {
     if (!socket || !isHost) return;
@@ -423,12 +439,38 @@ function MultiplayerRoomContent() {
     // Also unlock the actual audio element that will be used
     // iOS requires unlock on the SAME element that will play
     if (audioRef.current) {
-      ensureAudioUnlocked(audioRef.current).catch(() => {
-        // If unlock fails, that's okay - will try again when playing
+      ensureAudioUnlocked(audioRef.current).then(() => {
+        setShowIOSAudioButton(false); // Hide button if unlock succeeds
+      }).catch(() => {
+        // If unlock fails, show button
+        if (isIOS()) {
+          setShowIOSAudioButton(true);
+        }
       });
     }
     
     socket.emit('start-game', { roomCode });
+  };
+
+  // Handle iOS audio unlock button click
+  const handleIOSAudioUnlock = () => {
+    if (!audioRef.current) return;
+    
+    // Unlock audio on user interaction (this is the key for iOS)
+    unlockAudio();
+    ensureAudioUnlocked(audioRef.current).then(() => {
+      setShowIOSAudioButton(false);
+      // Try to play if we have a source
+      if (currentAudioSrc && audioRef.current) {
+        audioRef.current.play().catch(() => {
+          // If play fails, keep button visible
+          setShowIOSAudioButton(true);
+        });
+      }
+    }).catch(() => {
+      // Keep button visible if unlock fails
+      setShowIOSAudioButton(true);
+    });
   };
 
   const handleUpdateSettings = (newGenre: string) => {
@@ -474,7 +516,25 @@ function MultiplayerRoomContent() {
         <audio
           ref={audioRef}
           src={currentAudioSrc || ''}
+          onPlay={() => {
+            // Hide iOS button when audio plays successfully
+            if (isIOS()) {
+              setShowIOSAudioButton(false);
+            }
+          }}
         />
+        
+        {/* iOS-only Audio Enable Button */}
+        {isIOS() && showIOSAudioButton && phase !== 'waiting' && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
+            <button
+              onClick={handleIOSAudioUnlock}
+              className="bg-gradient-to-r from-[var(--accent-primary)] to-[var(--music-purple)] text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-2xl transition-all duration-300"
+            >
+              🔊 Enable Audio
+            </button>
+          </div>
+        )}
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[var(--accent-primary)] rounded-full blur-[150px]"></div>

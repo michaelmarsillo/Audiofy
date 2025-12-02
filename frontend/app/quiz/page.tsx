@@ -6,7 +6,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { QuizResults } from '@/components/QuizResults';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useVolume } from '@/components/VolumeControl';
-import { ensureAudioUnlocked, unlockAudio } from '@/utils/audioUnlock';
+import { ensureAudioUnlocked, unlockAudio, isElementUnlocked } from '@/utils/audioUnlock';
+import { isIOS } from '@/utils/deviceDetection';
 
 interface Question {
   id: number;
@@ -83,6 +84,7 @@ function QuizPageContent() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [currentAudioSrc, setCurrentAudioSrc] = useState<string>('');
   const [showExitModal, setShowExitModal] = useState(false);
+  const [showIOSAudioButton, setShowIOSAudioButton] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [submitting, setSubmitting] = useState(false);
 
@@ -213,7 +215,12 @@ function QuizPageContent() {
     if (!audioRef.current || !currentAudioSrc) return;
 
     const audio = audioRef.current;
-    audio.volume = siteVolume;
+    audio.volume = siteVolume; // Set volume but don't restart playback
+    
+    // For iOS: Check if audio is unlocked, show button if not
+    if (isIOS() && !isElementUnlocked(audio)) {
+      setShowIOSAudioButton(true);
+    }
     
     // For iOS: When src changes, we need to unlock again because changing src
     // can reset the unlock state. Force unlock when src changes.
@@ -230,10 +237,19 @@ function QuizPageContent() {
       if (playPromise !== undefined) {
         playPromise.catch((err) => {
           console.log('Audio play failed:', err);
+          // Show iOS button if play fails on iOS
+          if (isIOS()) {
+            setShowIOSAudioButton(true);
+          }
         });
+      } else {
+        // If play succeeds, hide the button
+        if (isIOS()) {
+          setShowIOSAudioButton(false);
+        }
       }
     });
-  }, [currentAudioSrc, siteVolume]);
+  }, [currentAudioSrc]); // Removed siteVolume - volume is synced separately
 
   // Update audio volume when site volume changes
   useEffect(() => {
@@ -313,14 +329,40 @@ function QuizPageContent() {
     // Also unlock the actual audio element that will be used
     // iOS requires unlock on the SAME element that will play
     if (audioRef.current) {
-      ensureAudioUnlocked(audioRef.current).catch(() => {
-        // If unlock fails, that's okay - will try again when playing
+      ensureAudioUnlocked(audioRef.current).then(() => {
+        setShowIOSAudioButton(false); // Hide button if unlock succeeds
+      }).catch(() => {
+        // If unlock fails, show button
+        if (isIOS()) {
+          setShowIOSAudioButton(true);
+        }
       });
     }
     
     setQuizStarted(true);
     setGamePhase('countdown');
     setPhaseTimer(5);
+  };
+
+  // Handle iOS audio unlock button click
+  const handleIOSAudioUnlock = () => {
+    if (!audioRef.current) return;
+    
+    // Unlock audio on user interaction (this is the key for iOS)
+    unlockAudio();
+    ensureAudioUnlocked(audioRef.current).then(() => {
+      setShowIOSAudioButton(false);
+      // Try to play if we have a source
+      if (currentAudioSrc && audioRef.current) {
+        audioRef.current.play().catch(() => {
+          // If play fails, keep button visible
+          setShowIOSAudioButton(true);
+        });
+      }
+    }).catch(() => {
+      // Keep button visible if unlock fails
+      setShowIOSAudioButton(true);
+    });
   };
 
   const resetQuiz = () => {
@@ -466,7 +508,25 @@ function QuizPageContent() {
         onEnded={() => {
           // Auto-stop at 7 seconds handled by QuizQuestion component
         }}
+        onPlay={() => {
+          // Hide iOS button when audio plays successfully
+          if (isIOS()) {
+            setShowIOSAudioButton(false);
+          }
+        }}
       />
+      
+      {/* iOS-only Audio Enable Button */}
+      {isIOS() && showIOSAudioButton && quizStarted && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
+          <button
+            onClick={handleIOSAudioUnlock}
+            className="bg-gradient-to-r from-[var(--accent-primary)] to-[var(--music-purple)] text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-2xl transition-all duration-300"
+          >
+            🔊 Enable Audio
+          </button>
+        </div>
+      )}
       
       {/* Exit Confirmation Modal */}
       {showExitModal && (
