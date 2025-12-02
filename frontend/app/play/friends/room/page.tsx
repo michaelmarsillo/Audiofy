@@ -382,44 +382,52 @@ function MultiplayerRoomContent() {
     }
   }, [siteVolume]);
 
-  // Set audio src when round data is received and play immediately
-  // CRITICAL: When roundData arrives during listening phase, unlock and play IMMEDIATELY
-  // This is the key - we do it in the same useEffect that receives roundData
+  // Set audio src when round data is received
+  // CRITICAL: Audio element is already playing (silently) from "Start Game" click
+  // So we just change the src - iOS allows this because element is already playing
   useEffect(() => {
     if (!roundData?.previewUrl) {
       setCurrentAudioSrc('');
+      if (audioRef.current) {
+        // If no round data, go back to silent sound
+        const silentSrc = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+        audioRef.current.src = silentSrc;
+        audioRef.current.volume = 0.01;
+        audioRef.current.loop = true;
+      }
       return;
     }
 
     if (phase === 'listening' || phase === 'reveal') {
       setCurrentAudioSrc(roundData.previewUrl);
       
-      // CRITICAL: If we're in listening phase, unlock and play NOW
-      // This happens when roundData arrives, which is right after user interaction
-      if (phase === 'listening' && audioRef.current) {
+      // CRITICAL: Audio element is already playing (silently) from "Start Game"
+      // Just change the src and volume - iOS allows this because element is already playing
+      if (audioRef.current) {
         const audio = audioRef.current;
-        audio.volume = siteVolume;
         audio.src = roundData.previewUrl;
+        audio.volume = siteVolume;
+        audio.loop = false; // Don't loop the actual song
         audio.load();
-        
-        // Unlock and play immediately - same pattern that works during reveal
-        ensureAudioUnlocked(audio, true).then(() => {
+        // Don't call play() - it's already playing!
+        // Just ensure it continues
+        if (audio.paused) {
           audio.play().catch(err => {
-            console.error('Audio play failed:', err);
+            console.error('Audio resume failed:', err);
             if (isIOS()) {
               setShowIOSAudioButton(true);
             }
           });
-        }).catch(() => {
-          if (isIOS()) {
-            setShowIOSAudioButton(true);
-          }
-        });
+        }
       }
     } else {
       setCurrentAudioSrc('');
       if (audioRef.current) {
-        audioRef.current.pause();
+        // Go back to silent sound when not in listening/reveal
+        const silentSrc = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+        audioRef.current.src = silentSrc;
+        audioRef.current.volume = 0.01;
+        audioRef.current.loop = true;
         audioRef.current.currentTime = 0;
       }
     }
@@ -435,17 +443,27 @@ function MultiplayerRoomContent() {
     // This MUST happen synchronously in the click handler for iOS
     unlockAudio();
     
-    // Also unlock the actual audio element that will be used
-    // iOS requires unlock on the SAME element that will play
+    // CRITICAL: Pre-unlock the audio element by playing a silent sound
+    // Then keep it "playing" (silently) so when we change src later, iOS allows it
     if (audioRef.current) {
-      ensureAudioUnlocked(audioRef.current).then(() => {
-        setShowIOSAudioButton(false); // Hide button if unlock succeeds
-      }).catch(() => {
-        // If unlock fails, show button
-        if (isIOS()) {
-          setShowIOSAudioButton(true);
-        }
-      });
+      const audio = audioRef.current;
+      // Play silent sound to unlock and keep element in playing state
+      const silentSrc = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+      audio.src = silentSrc;
+      audio.volume = 0.01;
+      audio.loop = true; // Keep it playing
+      
+      audio.play()
+        .then(() => {
+          console.log('✅ Audio element pre-unlocked and playing silently');
+          setShowIOSAudioButton(false);
+        })
+        .catch(() => {
+          console.warn('⚠️ Pre-unlock failed');
+          if (isIOS()) {
+            setShowIOSAudioButton(true);
+          }
+        });
     }
     
     socket.emit('start-game', { roomCode });

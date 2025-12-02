@@ -25,11 +25,7 @@ A full-stack music trivia game where players test their music knowledge by guess
 - Real-time multiplayer gameplay with Socket.IO
 - Points-based scoring system with streaks and bonuses
 - Multiple music genres (Gen-Z Hip-Hop, 80s Hits, 90s Hits)
-- Beautiful dark theme UI with vibrant gradients
-- Responsive design for mobile, tablet, and desktop
 - User authentication and guest play support
-- Global volume control
-- Smooth animations and transitions
 
 ## 🛠️ Tech Stack
 
