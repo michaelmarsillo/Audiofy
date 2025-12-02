@@ -1,137 +1,55 @@
 # 🎵 Audiofy
 
-A full-stack music trivia game where players test their music knowledge by guessing artists from 7-second song previews. Features multiple game modes, real-time multiplayer, and a global leaderboard system.
+A music trivia game where players guess artists from 7-second song previews. Built with real-time multiplayer and a global leaderboard.
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png)
 
+## 💭 The Story
+
+My family used to play a song quiz trivia game at the cottage, sitting around the fire or in the living room, enjoying drinks and shouting out answers. When the game got discontinued, I became inspired to build Audiofy to bring that experience back and expand on it.
+
+The **Arcade** mode is the most accurate representation of how the original game used to flow (minus the voice prompts and shouting). I then added a **multiplayer mode** with web sockets, a daily **Heardle** (inspired by Wordle), and a **global leaderboard** to make it even better.
+
 ## ✨ Features
 
-### 🎮 Game Modes
-
-- **Solo Play**: Test your music knowledge with 7 questions from your favorite genres
-- **Heardle**: Daily music guessing game with progressive audio unlocking
-- **Arcade**: Family-friendly mode with 80s/90s hits and discussion phases
-- **Play with Friends**: Real-time multiplayer mode with up to 8 players
-
-### 🏆 Leaderboard System
-
-- **Global Leaderboard**: Combined scores from Solo Play and Multiplayer
-- **Solo Leaderboard**: Track your solo play performance
-- **Multiplayer Leaderboard**: Compete with friends in multiplayer games
-- **Personal Stats**: View your rank, total score, games played, and more
-
-### 🎯 Key Features
-
-- Real-time multiplayer gameplay with Socket.IO
-- Points-based scoring system with streaks and bonuses
-- Multiple music genres (Gen-Z Hip-Hop, 80s Hits, 90s Hits)
-- User authentication and guest play support
+- **Solo Play** - Test your music knowledge across different genres
+- **Heardle** - Daily music guessing game with progressive audio unlocking
+- **Arcade** - Family/Party mode with 80s/90s hits (closest to the original game)
+- **Play with Friends** - Real-time multiplayer with up to 8 players
+- **Global Leaderboard** - Compete across all game modes
 
 ## 🛠️ Tech Stack
 
-### Frontend
-- **Next.js 15** - React framework with App Router
-- **TypeScript** - Type-safe development
-- **Tailwind CSS** - Utility-first styling
-- **Socket.IO Client** - Real-time multiplayer communication
-- **React Context** - State management
+**Frontend:**
+- Next.js
+- TypeScript
+- Tailwind CSS
+- Socket.IO Client
+- Hosted on Vercel
 
-### Backend
-- **Node.js** - Runtime environment
-- **Express.js** - Web framework
-- **Socket.IO** - Real-time bidirectional communication
-- **PostgreSQL** - Relational database
-- **JWT** - Authentication tokens
-- **bcrypt** - Password hashing
+**Backend:**
+- Node.js + Express
+- Socket.IO
+- PostgreSQL + Neon 
+- JWT Authentication
+- Hosted on Render
 
-### APIs
-- **iTunes Search API** - Music track data and previews
+**APIs:**
+- iTunes Search API
 
+## 🎮 Quick Overview
 
-## 🎮 Game Modes Explained
+- **Solo Play**: 7 questions, 100 points per correct answer
+- **Heardle**: Daily challenge with progressive audio unlocks
+- **Arcade**: 7 rounds with discussion phases (80s/90s focus)
+- **Multiplayer**: Real-time gameplay with points, time bonuses, and streaks
 
-### Solo Play
-- 7 questions per game
-- 7-second audio previews
-- Multiple choice artist selection
-- 100 points per correct answer
-- Multiple genres available
+## 📝 Notes
 
-### Heardle
-- Daily song challenge
-- Progressive audio unlocking (1s, 2s, 4s, 7s, 15s, 30s)
-- Search bar with autofill
-- Win/loss tracking
-- Next Heardle countdown
-
-### Arcade
-- Family-friendly mode
-- 7 rounds per game
-- 5s countdown → 10s audio → 7s discussion → 7s reveal
-- 80s/90s music focus
-- Settings modal for genre selection
-
-### Play with Friends (Multiplayer)
-- Real-time multiplayer with Socket.IO
-- Up to 8 players per room
-- Room code system
-- 7 rounds per game
-- Points system: Base (250) + Time Bonus (up to 70) + Streak Bonus (50 × streak)
-- Live scoreboard updates
-- Game over screen with rankings
-
-## 🏆 Scoring System
-
-### Solo Play
-- **Base**: 100 points per correct answer
-- **Max per game**: 700 points (7/7 correct)
-
-### Multiplayer
-- **Base**: 250 points per correct answer
-- **Time Bonus**: Up to 70 points (based on time remaining)
-- **Streak Bonus**: 50 points × (streak - 1)
-- **Max per game**: ~4,340 points (perfect game with max bonuses)
-
-### Global Leaderboard
-- **Total Audiofy Score** = Solo Total + Multiplayer Total
-- Rewards players who excel in both modes
-
-## 🔐 Authentication
-
-- JWT-based authentication
-- Password hashing with bcrypt
-- Guest play supported (scores not tracked)
-- Protected routes for user stats
-
-
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is open source and available under the MIT License.
-
-## 👤 Author
-
-**Michael Marsillo**
-- LinkedIn: [michaelmarsillo](https://www.linkedin.com/in/michaelmarsillo/) 
-- Blog: [michaelmarsillo.ca/blog](https://michaelmarsillo.ca/blog)
-
-## 🙏 Acknowledgments
-
-- iTunes Search API for music data
-- All the artists whose music makes this game possible
-- The open-source community
+Planning to write a blog post about the technical implementation once I fully implement the web sockets. Until then, feel free to explore the codebase
 
 ---
 
 **Built with ❤️ for music lovers everywhere**
 
+*Made by [Michael Marsillo](https://www.linkedin.com/in/michaelmarsillo/)*
