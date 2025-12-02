@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useVolume } from '@/components/VolumeControl';
-import { ensureAudioUnlocked, unlockAudio } from '@/utils/audioUnlock';
+import { unlockAudio, ensureAudioUnlocked } from '@/utils/audioUnlock';
 import { io, Socket } from 'socket.io-client';
 import Image from 'next/image';
 
@@ -144,6 +144,7 @@ function MultiplayerRoomContent() {
   const [rankings, setRankings] = useState<Player[]>([]);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [currentAudioSrc, setCurrentAudioSrc] = useState<string>('');
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Genre options (only available playlists)
@@ -371,48 +372,38 @@ function MultiplayerRoomContent() {
     }
   }, [siteVolume]);
 
-  // Play audio when round data is received
+  // Set audio src when round data is received (like Heardle pattern)
   useEffect(() => {
     if (phase === 'listening' && roundData?.previewUrl) {
-      // Properly clean up previous audio
+      setCurrentAudioSrc(roundData.previewUrl);
+    } else {
+      setCurrentAudioSrc('');
+      // Stop audio when leaving listening phase
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
-        audioRef.current = null;
       }
-      
-      // Create audio element WITHOUT src first (iOS requirement)
-      const audio = new Audio();
-      audio.volume = siteVolume;
-      audioRef.current = audio;
-      
-      // Unlock the audio element first (must happen before setting src on iOS)
-      ensureAudioUnlocked(audio).then(() => {
-        // Now set the actual source and play
-        audio.src = roundData.previewUrl;
-        audio.load(); // Load the new source
-        
-        // Play after a brief moment to ensure source is loaded
-        setTimeout(() => {
-          if (audioRef.current === audio) {
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {
-              playPromise.catch(err => {
-                console.error('Audio play error:', err);
-              });
-            }
-          }
-        }, 50);
-      }).catch(() => {
-        // If unlock fails, try setting src and playing anyway (for desktop)
-        if (audioRef.current === audio) {
-          audio.src = roundData.previewUrl;
-          audio.load();
-          audio.play().catch(() => {});
-        }
-      });
     }
-  }, [phase, roundData, siteVolume]);
+  }, [phase, roundData]);
+
+  // Auto-play audio when src changes (like Heardle pattern)
+  useEffect(() => {
+    if (!audioRef.current || !currentAudioSrc) return;
+
+    const audio = audioRef.current;
+    audio.volume = siteVolume;
+    
+    // Ensure audio is unlocked before playing (iOS Safari fix)
+    // This is the same pattern Heardle uses - unlock then play
+    ensureAudioUnlocked(audio).then(() => {
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(err => {
+          console.error('Audio play error:', err);
+        });
+      }
+    });
+  }, [currentAudioSrc, siteVolume]);
 
   const handleStartGame = () => {
     if (!socket || !isHost) return;
@@ -420,27 +411,6 @@ function MultiplayerRoomContent() {
     // Unlock audio on iOS when user clicks "Start Game"
     // This MUST happen synchronously in the click handler for iOS
     unlockAudio();
-    
-    // Create and immediately unlock a test audio element
-    // This establishes the audio context in the user interaction chain
-    // iOS requires this to happen synchronously in the click handler
-    try {
-      const testAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
-      testAudio.volume = 0.01;
-      // Play immediately (synchronously in click handler)
-      const playPromise = testAudio.play();
-      if (playPromise) {
-        playPromise.then(() => {
-          testAudio.pause();
-          testAudio.src = '';
-          console.log('✅ Audio context unlocked via Start Game');
-        }).catch(() => {
-          console.warn('⚠️ Audio unlock failed');
-        });
-      }
-    } catch (error) {
-      console.warn('⚠️ Audio unlock error:', error);
-    }
     
     socket.emit('start-game', { roomCode });
   };
@@ -483,6 +453,13 @@ function MultiplayerRoomContent() {
   if (phase === 'waiting') {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] text-white p-4 sm:p-8">
+        {/* Audio Element - Use DOM element like Heardle does */}
+        {currentAudioSrc && (
+          <audio
+            ref={audioRef}
+            src={currentAudioSrc}
+          />
+        )}
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[var(--accent-primary)] rounded-full blur-[150px]"></div>
@@ -611,6 +588,13 @@ function MultiplayerRoomContent() {
   if (phase === 'gameover') {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] text-white p-4 sm:p-8 flex items-center justify-center">
+        {/* Audio Element - Use DOM element like Heardle does */}
+        {currentAudioSrc && (
+          <audio
+            ref={audioRef}
+            src={currentAudioSrc}
+          />
+        )}
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[var(--accent-primary)] rounded-full blur-[150px]"></div>
@@ -695,6 +679,13 @@ function MultiplayerRoomContent() {
   if (phase === 'countdown') {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] text-white flex items-center justify-center p-4">
+        {/* Audio Element - Use DOM element like Heardle does */}
+        {currentAudioSrc && (
+          <audio
+            ref={audioRef}
+            src={currentAudioSrc}
+          />
+        )}
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[var(--accent-primary)] rounded-full blur-[150px]"></div>
@@ -728,6 +719,13 @@ function MultiplayerRoomContent() {
   if (phase === 'listening' && roundData) {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] text-white p-4">
+        {/* Audio Element - Use DOM element like Heardle does */}
+        {currentAudioSrc && (
+          <audio
+            ref={audioRef}
+            src={currentAudioSrc}
+          />
+        )}
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[var(--accent-primary)] rounded-full blur-[150px]"></div>
@@ -818,6 +816,13 @@ function MultiplayerRoomContent() {
   if (phase === 'reveal' && roundData) {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] text-white p-4 flex items-center justify-center">
+        {/* Audio Element - Use DOM element like Heardle does */}
+        {currentAudioSrc && (
+          <audio
+            ref={audioRef}
+            src={currentAudioSrc}
+          />
+        )}
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[var(--accent-primary)] rounded-full blur-[150px]"></div>

@@ -81,6 +81,7 @@ function QuizPageContent() {
   
   // Audio and UI states
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [currentAudioSrc, setCurrentAudioSrc] = useState<string>('');
   const [showExitModal, setShowExitModal] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [submitting, setSubmitting] = useState(false);
@@ -187,62 +188,44 @@ function QuizPageContent() {
     return () => clearInterval(timer);
   }, [gamePhase, currentQuestion, quizStarted, showExitModal, results, handlePhaseTransition, getNextPhaseDuration]);
 
-  // Audio control
+  // Audio control - Use DOM audio element like Heardle does
   useEffect(() => {
     if (!quizData || !quizStarted) return;
 
     const question = quizData.questions[currentQuestion];
     if (!question.preview_url) return;
 
-    // Clean up previous audio first
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = '';
-      audioRef.current = null;
-    }
-
-    // Create new audio only when starting guessing phase
+    // Only set audio src during guessing phase
     if (gamePhase === 'guessing') {
-      // Create audio element WITHOUT src first (iOS requirement)
-      // This allows us to unlock it before setting the actual source
-      const audio = new Audio();
-      audio.volume = siteVolume;
-      audio.currentTime = 0;
-      audioRef.current = audio;
-      
-      // Unlock the audio element first (must happen before setting src on iOS)
-      ensureAudioUnlocked(audio).then(() => {
-        // Now set the actual source and play
-        audio.src = question.preview_url;
-        audio.load(); // Load the new source
-        
-        // Play after a brief moment to ensure source is loaded
-        setTimeout(() => {
-          if (audioRef.current === audio) {
-            audio.play().catch((err) => {
-              console.log('Audio play failed:', err);
-            });
-          }
-        }, 50);
-      }).catch(() => {
-        // If unlock fails, try setting src and playing anyway (for desktop)
-        if (audioRef.current === audio) {
-          audio.src = question.preview_url;
-          audio.load();
-          audio.play().catch(() => {});
-        }
-      });
-    }
-
-    return () => {
-      // Cleanup on unmount or question/phase change
+      setCurrentAudioSrc(question.preview_url);
+    } else {
+      setCurrentAudioSrc('');
+      // Stop audio when leaving guessing phase
       if (audioRef.current) {
         audioRef.current.pause();
-        audioRef.current.src = '';
-        audioRef.current = null;
+        audioRef.current.currentTime = 0;
       }
-    };
-  }, [currentQuestion, gamePhase, quizData, quizStarted, siteVolume]);
+    }
+  }, [currentQuestion, gamePhase, quizData, quizStarted]);
+
+  // Auto-play audio when src changes (like Heardle pattern)
+  useEffect(() => {
+    if (!audioRef.current || !currentAudioSrc) return;
+
+    const audio = audioRef.current;
+    audio.volume = siteVolume;
+    
+    // Ensure audio is unlocked before playing (iOS Safari fix)
+    // This is the same pattern Heardle uses - unlock then play
+    ensureAudioUnlocked(audio).then(() => {
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.log('Audio play failed:', err);
+        });
+      }
+    });
+  }, [currentAudioSrc, siteVolume]);
 
   // Update audio volume when site volume changes
   useEffect(() => {
@@ -319,38 +302,18 @@ function QuizPageContent() {
     // This MUST happen synchronously in the click handler for iOS
     unlockAudio();
     
-    // Create and immediately unlock a test audio element
-    // This establishes the audio context in the user interaction chain
-    // iOS requires this to happen synchronously in the click handler
-    try {
-      const testAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
-      testAudio.volume = 0.01;
-      // Play immediately (synchronously in click handler)
-      const playPromise = testAudio.play();
-      if (playPromise) {
-        playPromise.then(() => {
-          testAudio.pause();
-          testAudio.src = '';
-          console.log('✅ Audio context unlocked via Start Quiz');
-        }).catch(() => {
-          console.warn('⚠️ Audio unlock failed');
-        });
-      }
-    } catch (error) {
-      console.warn('⚠️ Audio unlock error:', error);
-    }
-    
     setQuizStarted(true);
     setGamePhase('countdown');
     setPhaseTimer(5);
   };
 
   const resetQuiz = () => {
-    // Stop any playing audio
+    // Stop any playing audio but KEEP the element (for iOS unlock)
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.src = '';
-      audioRef.current = null;
+      audioRef.current.currentTime = 0;
+      // Don't set to null - keep the unlocked element!
     }
     
     setQuizData(null);
@@ -479,6 +442,17 @@ function QuizPageContent() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] p-4 md:p-6">
+      {/* Audio Element - Use DOM element like Heardle does */}
+      {currentAudioSrc && (
+        <audio
+          ref={audioRef}
+          src={currentAudioSrc}
+          onEnded={() => {
+            // Auto-stop at 7 seconds handled by QuizQuestion component
+          }}
+        />
+      )}
+      
       {/* Exit Confirmation Modal */}
       {showExitModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-[fadeIn_0.2s_ease-out]">
