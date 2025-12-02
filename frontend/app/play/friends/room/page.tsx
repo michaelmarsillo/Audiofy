@@ -146,7 +146,6 @@ function MultiplayerRoomContent() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [currentAudioSrc, setCurrentAudioSrc] = useState<string>('');
-  const [showIOSAudioButton, setShowIOSAudioButton] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Genre options (only available playlists)
@@ -332,6 +331,9 @@ function MultiplayerRoomContent() {
         setTimer(5);
         if (audioRef.current) {
           audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+          // CRITICAL: Clear src to prevent playing when exiting
+          audioRef.current.src = '';
         }
         break;
 
@@ -389,7 +391,7 @@ function MultiplayerRoomContent() {
     if (!roundData?.previewUrl) {
       setCurrentAudioSrc('');
       if (audioRef.current) {
-        // If no round data, go back to silent sound
+        // Go back to silent sound
         const silentSrc = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
         audioRef.current.src = silentSrc;
         audioRef.current.volume = 0.01;
@@ -407,23 +409,20 @@ function MultiplayerRoomContent() {
         const audio = audioRef.current;
         audio.src = roundData.previewUrl;
         audio.volume = siteVolume;
-        audio.loop = false; // Don't loop the actual song
+        audio.loop = false;
         audio.load();
         // Don't call play() - it's already playing!
-        // Just ensure it continues
+        // Just ensure it continues if it somehow paused
         if (audio.paused) {
-          audio.play().catch(err => {
-            console.error('Audio resume failed:', err);
-            if (isIOS()) {
-              setShowIOSAudioButton(true);
-            }
+          audio.play().catch(() => {
+            // If resume fails, that's okay - it should already be playing
           });
         }
       }
     } else {
+      // Go back to silent sound when not in listening/reveal
       setCurrentAudioSrc('');
       if (audioRef.current) {
-        // Go back to silent sound when not in listening/reveal
         const silentSrc = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
         audioRef.current.src = silentSrc;
         audioRef.current.volume = 0.01;
@@ -439,55 +438,25 @@ function MultiplayerRoomContent() {
   const handleStartGame = () => {
     if (!socket || !isHost) return;
     
-    // Unlock audio on iOS when user clicks "Start Game"
-    // This MUST happen synchronously in the click handler for iOS
+    // CRITICAL: Pre-unlock audio element NOW (user interaction)
+    // Start playing a silent sound and keep it playing
+    // When roundData arrives, we'll change the src - iOS allows this because element is already playing
     unlockAudio();
     
-    // CRITICAL: Pre-unlock the audio element by playing a silent sound
-    // Then keep it "playing" (silently) so when we change src later, iOS allows it
     if (audioRef.current) {
       const audio = audioRef.current;
-      // Play silent sound to unlock and keep element in playing state
       const silentSrc = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
       audio.src = silentSrc;
       audio.volume = 0.01;
-      audio.loop = true; // Keep it playing
+      audio.loop = true;
       
-      audio.play()
-        .then(() => {
-          console.log('✅ Audio element pre-unlocked and playing silently');
-          setShowIOSAudioButton(false);
-        })
-        .catch(() => {
-          console.warn('⚠️ Pre-unlock failed');
-          if (isIOS()) {
-            setShowIOSAudioButton(true);
-          }
-        });
+      // Start playing silently NOW (user interaction chain)
+      audio.play().catch(() => {
+        console.warn('Pre-unlock failed');
+      });
     }
     
     socket.emit('start-game', { roomCode });
-  };
-
-  // Handle iOS audio unlock button click
-  const handleIOSAudioUnlock = () => {
-    if (!audioRef.current) return;
-    
-    // Unlock audio on user interaction (this is the key for iOS)
-    unlockAudio();
-    ensureAudioUnlocked(audioRef.current).then(() => {
-      setShowIOSAudioButton(false);
-      // Try to play if we have a source
-      if (currentAudioSrc && audioRef.current) {
-        audioRef.current.play().catch(() => {
-          // If play fails, keep button visible
-          setShowIOSAudioButton(true);
-        });
-      }
-    }).catch(() => {
-      // Keep button visible if unlock fails
-      setShowIOSAudioButton(true);
-    });
   };
 
   const handleUpdateSettings = (newGenre: string) => {
@@ -518,6 +487,13 @@ function MultiplayerRoomContent() {
   };
 
   const handleLeaveRoom = () => {
+    // CRITICAL: Stop and clear audio before leaving to prevent playing in lobby
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current.currentTime = 0;
+    }
+    
     if (socket) {
       socket.emit('leave-room');
     }
@@ -536,22 +512,10 @@ function MultiplayerRoomContent() {
           onPlay={() => {
             // Hide iOS button when audio plays successfully
             if (isIOS()) {
-              setShowIOSAudioButton(false);
+              // Button will hide automatically when phase changes
             }
           }}
         />
-        
-        {/* iOS-only Audio Enable Button */}
-        {isIOS() && showIOSAudioButton && phase !== 'waiting' && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
-            <button
-              onClick={handleIOSAudioUnlock}
-              className="bg-gradient-to-r from-[var(--accent-primary)] to-[var(--music-purple)] text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-2xl transition-all duration-300"
-            >
-              🔊 Enable Audio
-            </button>
-          </div>
-        )}
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[var(--accent-primary)] rounded-full blur-[150px]"></div>
@@ -684,7 +648,7 @@ function MultiplayerRoomContent() {
         {/* Always render the audio element (even if src is empty) so we can unlock it */}
         <audio
           ref={audioRef}
-          src={currentAudioSrc || ''}
+          src={currentAudioSrc || undefined}
         />
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
@@ -774,7 +738,7 @@ function MultiplayerRoomContent() {
         {/* Always render the audio element (even if src is empty) so we can unlock it */}
         <audio
           ref={audioRef}
-          src={currentAudioSrc || ''}
+          src={currentAudioSrc || undefined}
         />
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
@@ -814,7 +778,11 @@ function MultiplayerRoomContent() {
         <audio
           ref={audioRef}
           src={currentAudioSrc || ''}
+          onPlay={() => {
+            // Audio is playing - button will hide automatically when phase changes
+          }}
         />
+        
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-[var(--accent-primary)] rounded-full blur-[150px]"></div>
@@ -909,7 +877,7 @@ function MultiplayerRoomContent() {
         {/* Always render the audio element (even if src is empty) so we can unlock it */}
         <audio
           ref={audioRef}
-          src={currentAudioSrc || ''}
+          src={currentAudioSrc || undefined}
         />
         {/* Vibrant background gradient */}
         <div className="fixed inset-0 opacity-[0.08] pointer-events-none">

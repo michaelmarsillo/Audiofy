@@ -504,7 +504,7 @@ function QuizPageContent() {
       {/* Always render the audio element (even if src is empty) so we can unlock it */}
       <audio
         ref={audioRef}
-        src={currentAudioSrc || ''}
+        src={currentAudioSrc || undefined}
         onEnded={() => {
           // Auto-stop at 7 seconds handled by QuizQuestion component
         }}
