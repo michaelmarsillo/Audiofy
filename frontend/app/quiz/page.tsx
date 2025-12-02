@@ -198,7 +198,8 @@ function QuizPageContent() {
     if (!question.preview_url) return;
 
     // Set audio src during both guessing AND reveal phases (audio continues playing)
-    if (gamePhase === 'guessing' || gamePhase === 'reveal') {
+    // Also set src during countdown so iOS can unlock it early
+    if (gamePhase === 'countdown' || gamePhase === 'guessing' || gamePhase === 'reveal') {
       setCurrentAudioSrc(question.preview_url);
     } else {
       setCurrentAudioSrc('');
@@ -227,14 +228,17 @@ function QuizPageContent() {
       audio.src = currentAudioSrc;
       audio.load();
       
-      // On iOS, only play if user has enabled audio
-      if (isIOS() && !audioEnabled) {
+      // On iOS, only play if user has enabled audio (skip during countdown)
+      if (isIOS() && !audioEnabled && gamePhase !== 'countdown') {
         return; // Wait for user to enable audio
       }
       
-      audio.play().catch((err) => {
-        console.log('Audio play failed:', err);
-      });
+      // Only auto-play during guessing/reveal phases (not countdown)
+      if (gamePhase === 'guessing' || gamePhase === 'reveal') {
+        audio.play().catch((err) => {
+          console.log('Audio play failed:', err);
+        });
+      }
     } else {
       // Same src - just update volume, ensure it's playing
       audio.volume = siteVolume;
@@ -536,8 +540,8 @@ function QuizPageContent() {
         }}
       />
       
-      {/* iOS-only Audio Enable Button - Show when audio is needed but not enabled */}
-      {isIOS() && quizStarted && !audioEnabled && (gamePhase === 'guessing' || gamePhase === 'reveal') && currentAudioSrc && (
+      {/* iOS-only Audio Enable Button - Show during countdown or when audio is needed but not enabled */}
+      {isIOS() && quizStarted && !audioEnabled && (gamePhase === 'countdown' || gamePhase === 'guessing' || gamePhase === 'reveal') && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
           <button
             onClick={handleEnableAudio}
