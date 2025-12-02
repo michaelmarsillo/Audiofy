@@ -46,10 +46,10 @@ The **Arcade** mode is the most accurate representation of how the original game
 
 ## 📝 Notes
 
-Planning to write a blog post about the technical implementation once I fully implement the web sockets. Until then, feel free to explore the codebase
+Planning to write a blog post about the technical implementation once I fully implement the web sockets. Until then, feel free to explore the codebase.
 
 ---
 
 **Built with ❤️ for music lovers everywhere**
 
-*Made by [Michael Marsillo](https://www.linkedin.com/in/michaelmarsillo/)*
+*Made by [michael marsillo](https://www.linkedin.com/in/michaelmarsillo/)*
