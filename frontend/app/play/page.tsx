@@ -110,7 +110,7 @@ export default function PlayPage() {
           <div className="text-center mb-16 max-w-3xl mx-auto">
             <p className="text-lg text-[var(--text-secondary)] leading-relaxed lowercase">
               choose your favorite music quiz game and start guessing songs now! play with friends in multiplayer mode{''}
-              <span className="text-[var(--text-muted)] text-sm"></span>, test your skills in daily heardle games{' '}
+              <span className="text-[var(--text-muted)] text-sm"></span>, test your skills in daily heardle games{''}
               <span className="text-[var(--text-muted)] text-sm"></span>, or master music trivia solo.
             </p>
           </div>
