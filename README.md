@@ -46,7 +46,7 @@ The **Arcade** mode is the most accurate representation of how the original game
 
 ## 📝 Notes
 
-Planning to write a blog post about the technical implementation once I fully implement the web sockets. Until then, feel free to explore the codebase.
+Planning to write a [blog](https://michaelmarsillo.ca/blog) post about the technical implementation of the websockets so stay tuned!
 
 ---
 
