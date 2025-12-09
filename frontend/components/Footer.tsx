@@ -26,7 +26,7 @@ export default function Footer() {
           <span className="text-xs text-[var(--text-secondary)] font-medium whitespace-nowrap">systems status:</span>
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-1.5">
-              <div className={`w-2.5 h-2.5 rounded-full ${
+              <div className={`w-2 h-2 rounded-full ${
                 systemsStatus.desktop === 'green' 
                   ? 'bg-green-500 animate-pulse' 
                   : 'bg-red-500'
@@ -35,7 +35,7 @@ export default function Footer() {
             </div>
             <div className="w-px h-4 bg-[var(--bg-accent)]"></div>
             <div className="flex items-center gap-1.5">
-              <div className={`w-2.5 h-2.5 rounded-full ${
+              <div className={`w-2 h-2 rounded-full ${
                 systemsStatus.mobile === 'green' 
                   ? 'bg-green-500 animate-pulse' 
                   : 'bg-red-500'
@@ -44,7 +44,7 @@ export default function Footer() {
             </div>
             <div className="w-px h-4 bg-[var(--bg-accent)]"></div>
             <div className="flex items-center gap-1.5">
-              <div className={`w-2.5 h-2.5 rounded-full ${
+              <div className={`w-2 h-2 rounded-full ${
                 systemsStatus.websockets === 'green' 
                   ? 'bg-green-500 animate-pulse' 
                   : 'bg-red-500'
