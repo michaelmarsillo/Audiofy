@@ -3,7 +3,7 @@ export default function Footer() {
   const systemsStatus = {
     desktop: 'green',
     mobile: 'green',
-    websockets: 'red'
+    websockets: 'green'
   };
 
   return (
