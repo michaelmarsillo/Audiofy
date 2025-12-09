@@ -493,6 +493,7 @@ function generateRoomCode() {
 
 io.on('connection', (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);
+  console.log(`   Origin: ${socket.handshake.headers.origin || 'unknown'}`);
 
   // Create a new game room
   socket.on('create-room', async ({ username, userId, settings, roomCode: providedRoomCode }) => {
@@ -529,13 +530,13 @@ io.on('connection', (socket) => {
     socket.join(roomCode);
     socket.roomCode = roomCode;
 
-    console.log(`🎮 Room ${roomCode} created by ${username}`);
+    console.log(`🎮 Room ${roomCode} created by ${username} (${userId ? 'logged in' : 'guest'})`);
     
     socket.emit('room-created', { roomCode, room });
   });
 
   // Join existing room
-  socket.on('join-room', ({ roomCode, username }) => {
+  socket.on('join-room', ({ roomCode, username, userId }) => {
     const room = gameRooms.get(roomCode);
     
     if (!room) {
@@ -567,14 +568,14 @@ io.on('connection', (socket) => {
     socket.join(roomCode);
     socket.roomCode = roomCode;
 
-    console.log(`👤 ${username} joined room ${roomCode}`);
+    console.log(`👤 ${username} joined room ${roomCode} (${userId ? 'logged in' : 'guest'})`);
 
     // Notify all players in room
     io.to(roomCode).emit('player-joined', { room });
   });
 
   // Rejoin existing room (when navigating to room page with new socket connection)
-  socket.on('rejoin-room', ({ roomCode, username }) => {
+  socket.on('rejoin-room', ({ roomCode, username, userId }) => {
     const room = gameRooms.get(roomCode);
     
     if (!room) {
@@ -609,7 +610,7 @@ io.on('connection', (socket) => {
     socket.join(roomCode);
     socket.roomCode = roomCode;
 
-    console.log(`🔄 ${username} rejoined room ${roomCode}`);
+    console.log(`🔄 ${username} rejoined room ${roomCode} (${userId ? 'logged in' : 'guest'})`);
 
     // Send room state to this player
     socket.emit('room-rejoined', { room });

@@ -77,7 +77,11 @@ export default function FriendsLobby() {
   const handleJoinRoom = () => {
     if (!socket || !roomCode) return;
 
-    socket.emit('join-room', { roomCode: roomCode.toUpperCase(), username });
+    socket.emit('join-room', { 
+      roomCode: roomCode.toUpperCase(), 
+      username,
+      userId: user?.id || null
+    });
 
     socket.once('player-joined', () => {
       console.log('✅ Joined room:', roomCode);

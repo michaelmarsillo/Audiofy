@@ -171,16 +171,21 @@ function MultiplayerRoomContent() {
       return;
     }
 
-    // Get username from AuthContext or localStorage
+    // Get username from AuthContext or generate guest name
     let username = user?.username || 'Guest';
     if (!user) {
       try {
         const storedUser = localStorage.getItem('audiofy_user');
         if (storedUser) {
-          username = JSON.parse(storedUser).username || 'Guest';
+          username = JSON.parse(storedUser).username || 'Guest_' + Math.floor(Math.random() * 1000);
+        } else {
+          // Generate random guest username if no stored user
+          username = 'Guest_' + Math.floor(Math.random() * 1000);
         }
       } catch (e) {
         console.error('Error getting username:', e);
+        // Fallback to random guest name
+        username = 'Guest_' + Math.floor(Math.random() * 1000);
       }
     }
 
@@ -269,7 +274,12 @@ function MultiplayerRoomContent() {
     });
 
     newSocket.on('round-data', (data: RoundData) => {
+      // CRITICAL: Synchronize phase and timer when round data arrives
+      // This ensures all clients start listening phase at the same time
       setRoundData(data);
+      setCurrentRound(data.roundIndex); // Update round index from server
+      setPhase('listening');
+      setTimer(7); // Reset timer to 7 seconds for listening phase
       setSelectedAnswer(null);
       setHasAnswered(false);
       setAnswerResult(null);
@@ -314,9 +324,8 @@ function MultiplayerRoomContent() {
 
     switch (phase) {
       case 'countdown':
-        // Start listening phase
-        setPhase('listening');
-        setTimer(7);
+        // Request round data - server will send round-data which triggers listening phase
+        // Don't transition locally - wait for server to send round-data for synchronization
         socket.emit('request-round', { roomCode, roundIndex: currentRound });
         break;
 
@@ -743,20 +752,27 @@ function MultiplayerRoomContent() {
           {/* Top 3 Podium */}
           <div className="flex items-end justify-center gap-4 mb-12">
             {rankings.slice(0, 3).map((player, idx) => {
-              const heights = ['h-48', 'h-64', 'h-40'];
-              const colors = ['from-gray-400 to-gray-600', 'from-yellow-400 to-yellow-600', 'from-orange-400 to-orange-600'];
-              const positions = [1, 0, 2];
-              const actualIdx = positions[idx];
-              const actualPlayer = rankings[actualIdx];
+              // Podium order: 2nd place (left), 1st place (center - tallest/gold), 3rd place (right)
+              // rankings[0] = 1st place, rankings[1] = 2nd place, rankings[2] = 3rd place
+              const podiumOrder = [1, 0, 2]; // Map display position to rankings index
+              const actualRankingIdx = podiumOrder[idx];
+              const actualPlayer = rankings[actualRankingIdx];
               
               if (!actualPlayer) return null;
 
+              // Heights: left (2nd), center (1st - tallest), right (3rd)
+              const heights = ['h-48', 'h-64', 'h-40'];
+              // Colors: left (silver/gray), center (gold/yellow), right (bronze/orange)
+              const colors = ['from-gray-400 to-gray-600', 'from-yellow-400 to-yellow-600', 'from-orange-400 to-orange-600'];
+              // Ranks: left shows #2, center shows #1, right shows #3
+              const displayRank = actualRankingIdx + 1;
+
               return (
-                <div key={actualPlayer.id} className={`flex-1 max-w-xs ${heights[actualIdx]} bg-gradient-to-br ${colors[actualIdx]} rounded-t-2xl flex flex-col items-center justify-center p-4 relative`}>
+                <div key={actualPlayer.id} className={`flex-1 max-w-xs ${heights[idx]} bg-gradient-to-br ${colors[idx]} rounded-t-2xl flex flex-col items-center justify-center p-4 relative`}>
                   <div className="absolute -top-8 w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-2xl font-bold border-4 border-white">
                     {actualPlayer.username[0].toUpperCase()}
                   </div>
-                  <div className="text-4xl font-bold mb-2">#{actualIdx + 1}</div>
+                  <div className="text-4xl font-bold mb-2">#{displayRank}</div>
                   <div className="text-xl font-semibold mb-1">{actualPlayer.username}</div>
                   <div className="text-3xl font-bold">{actualPlayer.score}</div>
                   <div className="text-sm text-white/80">points</div>
