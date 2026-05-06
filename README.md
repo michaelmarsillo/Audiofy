@@ -46,7 +46,7 @@ The **Arcade** mode is the most accurate representation of how the original game
 
 ## 📝 Notes
 
-Planning to write a [blog](https://michaelmarsillo.ca/blog) post about the technical implementation of the websockets, stay tuned!
+Planning to write a [blog](https://www.michaelmarsillo.ca/blog/building-audiofy) post about the technical implementation of the websockets, stay tuned!
 
 ---
 
