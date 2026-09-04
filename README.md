@@ -2,8 +2,6 @@
 
 A music trivia game where players guess artists from 7-second song previews. Built with real-time multiplayer and a global leaderboard.
 
-![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/rainbow.png)
-
 ## 💭 The Story
 
 My family used to play a song quiz trivia game at the cottage, sitting around the fire or in the living room, enjoying drinks and shouting out answers. When the game got discontinued, I became inspired to build Audiofy to bring that experience back and expand on it.
